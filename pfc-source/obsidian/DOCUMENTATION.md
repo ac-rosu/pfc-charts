@@ -416,9 +416,9 @@ host (e.g. a VS Code webview or a Fumadocs component) mostly a packaging exercis
 
 ---
 
-## Symbol coverage (ISA-88 Figure 7)
+## Symbol coverage (ISA-88)
 
-All symbols in the S88.02 PFC symbol key (Figure 7) are supported:
+All symbols in the S88.02 PFC symbol key are supported:
 
 - Begin / End placeholders (triangles)
 - Step levels via corner diagonals (phase, operation, unit procedure, procedure)
