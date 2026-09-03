@@ -49,6 +49,44 @@ end`;
   assert.ok(L.width > 0 && L.height > 0);
 });
 
+// R3: many lanes each loop back locally (to their right) without overlapping neighbours
+test("R3: many concurrent lanes route locally without overlap", () => {
+  const lanes = 6;
+  let src = "concurrent\n";
+  for (let i = 0; i < lanes; i++) src += `process "P${i}"\nstep "s${i}"\n`;
+  src += "end";
+  const L = layoutChart(parsePfc(src));
+  assert.equal(L.loops.length, lanes);
+  // loop points: [ [spine,bottom], [spine,botY], [channel,botY], ... ]
+  const spines = L.loops.map((lp) => lp.points[0][0]);
+  const channels = L.loops.map((lp) => lp.points[2][0]);
+  for (let i = 1; i < lanes; i++) assert.ok(spines[i] > spines[i - 1], "lanes ordered left to right");
+  for (let i = 0; i < lanes; i++) {
+    assert.ok(channels[i] > spines[i], `lane ${i} loops back on its right`);
+    if (i + 1 < lanes)
+      assert.ok(channels[i] < spines[i + 1], `lane ${i} loop stays left of lane ${i + 1}`);
+  }
+});
+
+// R3: a drawn goto inside a lane routes in that lane's own gutter, left of the next lane
+test("R3: per-lane drawn goto stays within its lane's gutter", () => {
+  const src = `concurrent
+process "A"
+step LA "a1"
+trans "retry"
+goto LA line
+process "B"
+step "b1"
+end`;
+  const L = layoutChart(parsePfc(src));
+  assert.equal(L.loops.length, 2);
+  assert.equal(L.gotoLinks.length, 1);
+  const laneBspine = L.loops[1].points[0][0];
+  const gotoChannel = L.gotoLinks[0].points[1][0];
+  assert.ok(gotoChannel < laneBspine, "goto channel stays left of the next lane");
+});
+
+
 // R1: a very long unbroken word in a note is hard-broken across lines
 test("R1: long unbroken note word wraps to multiple lines", () => {
   const longWord = "x".repeat(80);

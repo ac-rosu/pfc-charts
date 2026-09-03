@@ -448,8 +448,10 @@ function countGotos(nodes: PfcNode[]): number {
 }
 
 // Independent looping processes side by side, joined by synchronization lines.
-// Each process is its own cyclic lane (no begin/end, no convergence): process 0
-// loops on the left, the rest loop on the right.
+// Each process is its own cyclic lane (no begin/end, no convergence). Every lane
+// loops back through a dedicated channel in the gutter immediately to its right,
+// and routes its own drawn gotos in that same gutter, so the routing stays local
+// and never overlaps regardless of how many lanes there are.
 function layoutConcurrent(node: { processes: Array<{ label: string; body: PfcNode[] }> }, out: Layout): void {
   const processes = node.processes;
   const pms = processes.map((p) => measureSeq(p.body));
@@ -458,17 +460,25 @@ function layoutConcurrent(node: { processes: Array<{ label: string; body: PfcNod
   const titleBandY = headerY;
   const topY = headerY + (hasTitles ? PROC_TITLE_H : 0) + LOOP_STUB;
 
-  // reserve left space for the left lane's own goto channels
-  const g0 = countGotos(processes[0].body);
-  const leftPad = g0 * GOTO_GAP;
-  const leftChannelX = MARGIN + 8 + leftPad;
-  let x = MARGIN + LOOP_GAP + leftPad; // room for lane 0's left loop channel
+  // Lay lanes left to right. Each lane owns a right-hand gutter holding its loop
+  // channel followed by its drawn-goto channels; the next lane starts past that gutter.
+  const gotoCounts = processes.map((p) => countGotos(p.body));
   const spines: number[] = [];
-  pms.forEach((pm) => {
-    spines.push(x + pm.leftExt);
-    x += pm.leftExt + pm.rightExt + PROCESS_GAP;
+  const loopChannels: number[] = [];
+  const gotoChannels: number[][] = [];
+  let x = MARGIN;
+  pms.forEach((pm, i) => {
+    const spine = x + pm.leftExt;
+    spines.push(spine);
+    const laneRight = spine + pm.rightExt;
+    const loopCh = laneRight + LOOP_GAP;
+    loopChannels.push(loopCh);
+    const gch: number[] = [];
+    for (let k = 0; k < gotoCounts[i]; k++) gch.push(loopCh + GOTO_GAP * (k + 1));
+    gotoChannels.push(gch);
+    const gutterEnd = (gch.length ? gch[gch.length - 1] : loopCh) + PROCESS_GAP;
+    x = gutterEnd;
   });
-  const rightEdge = x - PROCESS_GAP;
 
   const gotoStore = ((out as any)._gotos ??= []) as Array<any>;
   const procGotos: Array<Array<{ ox: number; oy: number; target: string }>> = [];
@@ -483,46 +493,32 @@ function layoutConcurrent(node: { processes: Array<{ label: string; body: PfcNod
 
   pairSyncMarkers(out);
 
+  // each lane loops back through its own right-hand channel
   processes.forEach((_proc, i) => {
-    const channelX = i === 0 ? leftChannelX : rightEdge + LOOP_GAP * i;
-    out.loops.push(makeLoop(spines[i], topY, bottoms[i], channelX));
+    out.loops.push(makeLoop(spines[i], topY, bottoms[i], loopChannels[i]));
   });
 
-  // route each lane's gotos on that lane's own side (lane 0 → left, others → right)
+  // each lane's drawn gotos route through that lane's own goto channels (to its right)
   const pos = ((out as any)._stepPos ?? {}) as Record<string, { x: number; y: number }>;
-  let rightCh = rightEdge + LOOP_GAP * (processes.length - 1) + GOTO_GAP;
-  let maxRight = rightEdge + LOOP_GAP * (processes.length - 1);
   procGotos.forEach((gs, i) => {
-    gs.forEach((g, k) => {
+    let drawn = 0;
+    gs.forEach((g) => {
       const t = pos[g.target];
       if (!t) return;
+      const ch = gotoChannels[i][drawn++] ?? loopChannels[i] + GOTO_GAP;
       const topYt = t.y - GOTO_STUB;
-      let ch: number;
-      let anchor: "start" | "end";
-      let lx: number;
-      if (i === 0) {
-        ch = MARGIN + 8 + k * GOTO_GAP; // left of lane 0, local to it
-        anchor = "end";
-        lx = g.ox - 8;
-      } else {
-        ch = rightCh;
-        rightCh += GOTO_GAP;
-        maxRight = Math.max(maxRight, ch);
-        anchor = "start";
-        lx = g.ox + 8;
-      }
       out.gotoLinks.push({
         points: [[g.ox, g.oy], [ch, g.oy], [ch, topYt], [t.x, topYt], [t.x, t.y]],
         arrow: { cx: t.x, y: t.y },
         label: g.target,
-        labelX: lx,
+        labelX: g.ox + 8,
         labelY: g.oy - 6,
-        labelAnchor: anchor,
+        labelAnchor: "start",
       });
     });
   });
 
-  out.width = maxRight + MARGIN;
+  out.width = x + MARGIN;
   out.height = Math.max(...bottoms) + LOOP_STUB + MARGIN;
 }
 

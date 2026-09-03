@@ -645,16 +645,24 @@ function layoutConcurrent(node, out) {
   const headerY = MARGIN + (out.title ? TITLE_H : 0);
   const titleBandY = headerY;
   const topY = headerY + (hasTitles ? PROC_TITLE_H : 0) + LOOP_STUB;
-  const g0 = countGotos(processes[0].body);
-  const leftPad = g0 * GOTO_GAP;
-  const leftChannelX = MARGIN + 8 + leftPad;
-  let x = MARGIN + LOOP_GAP + leftPad;
+  const gotoCounts = processes.map((p) => countGotos(p.body));
   const spines = [];
-  pms.forEach((pm) => {
-    spines.push(x + pm.leftExt);
-    x += pm.leftExt + pm.rightExt + PROCESS_GAP;
+  const loopChannels = [];
+  const gotoChannels = [];
+  let x = MARGIN;
+  pms.forEach((pm, i) => {
+    const spine = x + pm.leftExt;
+    spines.push(spine);
+    const laneRight = spine + pm.rightExt;
+    const loopCh = laneRight + LOOP_GAP;
+    loopChannels.push(loopCh);
+    const gch = [];
+    for (let k = 0; k < gotoCounts[i]; k++)
+      gch.push(loopCh + GOTO_GAP * (k + 1));
+    gotoChannels.push(gch);
+    const gutterEnd = (gch.length ? gch[gch.length - 1] : loopCh) + PROCESS_GAP;
+    x = gutterEnd;
   });
-  const rightEdge = x - PROCESS_GAP;
   const gotoStore = (_a = out._gotos) != null ? _a : out._gotos = [];
   const procGotos = [];
   const bottoms = processes.map((proc, i) => {
@@ -667,43 +675,29 @@ function layoutConcurrent(node, out) {
   });
   pairSyncMarkers(out);
   processes.forEach((_proc, i) => {
-    const channelX = i === 0 ? leftChannelX : rightEdge + LOOP_GAP * i;
-    out.loops.push(makeLoop(spines[i], topY, bottoms[i], channelX));
+    out.loops.push(makeLoop(spines[i], topY, bottoms[i], loopChannels[i]));
   });
   const pos = (_b = out._stepPos) != null ? _b : {};
-  let rightCh = rightEdge + LOOP_GAP * (processes.length - 1) + GOTO_GAP;
-  let maxRight = rightEdge + LOOP_GAP * (processes.length - 1);
   procGotos.forEach((gs, i) => {
-    gs.forEach((g, k) => {
+    let drawn = 0;
+    gs.forEach((g) => {
+      var _a2;
       const t = pos[g.target];
       if (!t)
         return;
+      const ch = (_a2 = gotoChannels[i][drawn++]) != null ? _a2 : loopChannels[i] + GOTO_GAP;
       const topYt = t.y - GOTO_STUB;
-      let ch;
-      let anchor;
-      let lx;
-      if (i === 0) {
-        ch = MARGIN + 8 + k * GOTO_GAP;
-        anchor = "end";
-        lx = g.ox - 8;
-      } else {
-        ch = rightCh;
-        rightCh += GOTO_GAP;
-        maxRight = Math.max(maxRight, ch);
-        anchor = "start";
-        lx = g.ox + 8;
-      }
       out.gotoLinks.push({
         points: [[g.ox, g.oy], [ch, g.oy], [ch, topYt], [t.x, topYt], [t.x, t.y]],
         arrow: { cx: t.x, y: t.y },
         label: g.target,
-        labelX: lx,
+        labelX: g.ox + 8,
         labelY: g.oy - 6,
-        labelAnchor: anchor
+        labelAnchor: "start"
       });
     });
   });
-  out.width = maxRight + MARGIN;
+  out.width = x + MARGIN;
   out.height = Math.max(...bottoms) + LOOP_STUB + MARGIN;
 }
 function pairSyncMarkers(out) {

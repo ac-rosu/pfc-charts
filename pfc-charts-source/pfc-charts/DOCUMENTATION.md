@@ -397,11 +397,10 @@ exercise.
 
 ## Known limitations
 
-- **Concurrent lanes** are tuned for **two** lanes. Three or more render, but their loop
-  return channels stack on the right and can cross; routing for 3+ lanes is not yet
-  optimized. A `goto` inside a lane routes on that lane's own side (left lane → left,
-  right lane → right) so it stays local; for 3+ lanes a middle lane's goto may cross an
-  outer lane.
+- **Concurrent lanes** scale to any number of lanes: each lane loops back through its own
+  channel in the gutter immediately to its right, and its drawn `goto`s route in that same
+  gutter, so the routing stays local and never overlaps a neighbouring lane. Sync/transfer
+  connectors between adjacent lanes cross that gutter and hop over the loop channel.
 - **Sync/transfer connectors** route as horizontal → vertical → horizontal. Two
   connectors crossing the same gap run their vertical segments near each other.
 - **Notes** render on the right of an element. In a concurrent left lane that places them
