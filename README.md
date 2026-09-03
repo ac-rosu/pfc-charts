@@ -9,14 +9,14 @@ themed SVG. One framework-agnostic core drives multiple targets.
 pfc-source/
   core/        shared engine — parser, layout, SVG renderer (package @pfc/core)
   obsidian/    Obsidian plugin adapter (consumes @pfc/core)
-  vscode/      VS Code extension adapter (planned)
-  fumadocs/    Fumadocs integration (planned)
+  vscode/      VS Code Markdown-preview extension (consumes @pfc/core)
+  fumadocs/    Fumadocs (Next.js + MDX) adapter (consumes @pfc/core)
 pfc-skills/    AI authoring skill (SKILL.md + examples) for writing pfc charts
 output/        generated build artifacts (git-ignored, safe to delete)
 build.mjs      build orchestrator -> output/<target>
 ```
 
-`core/`, `obsidian/` (and, later, `vscode/`, `fumadocs/`) are npm workspaces; the
+`core/`, `obsidian/`, `vscode/`, and `fumadocs/` are npm workspaces; the
 adapters import the shared engine as `@pfc/core`.
 
 ## Commands
@@ -25,8 +25,10 @@ Run from the repository root:
 
 ```bash
 npm install
-npm run build            # type-check + build every implemented target -> output/
+npm run build            # type-check + build every target -> output/
 npm run build:obsidian   # build only the Obsidian target
+npm run build:vscode     # build only the VS Code target
+npm run build:fumadocs   # build only the Fumadocs target
 npm run dev              # watch-rebuild the Obsidian target
 npm test                 # parser/layout unit tests
 npm run lint             # eslint
@@ -42,4 +44,6 @@ npm run format           # prettier --write
 - **VS Code** — a Markdown-preview extension built to `output/vscode/`. Renders `pfc`
   fenced blocks as inline SVG in the built-in preview. See
   [pfc-source/vscode/README.md](pfc-source/vscode/README.md).
-- **Fumadocs** — scaffolded under `pfc-source/fumadocs/` (adapter not implemented yet).
+- **Fumadocs** — a Next.js + MDX adapter (`@pfc/fumadocs`) built to `output/fumadocs/`.
+  A React Server Component + optional remark plugin render `pfc` fences as static inline
+  SVG (no client JS). See [pfc-source/fumadocs/README.md](pfc-source/fumadocs/README.md).

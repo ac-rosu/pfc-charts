@@ -1,0 +1,148 @@
+/* PFC Charts — Fumadocs theming.
+   Mirrors the Obsidian/VS Code stylesheets but maps onto Fumadocs' design
+   tokens so charts follow the active docs theme (light/dark). Import once in a
+   global stylesheet: `import "@pfc/fumadocs/styles.css";` */
+
+.pfc-container {
+  display: flex;
+  justify-content: safe center;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.pfc-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* connectors and bars */
+.pfc-line {
+  stroke: var(--color-fd-foreground);
+  stroke-width: 1.5;
+}
+.pfc-bar {
+  stroke: var(--color-fd-foreground);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.pfc-trans-tick {
+  stroke: var(--color-fd-foreground);
+  stroke-width: 2;
+}
+
+/* steps */
+.pfc-step-rect {
+  fill: var(--color-fd-background);
+  stroke: var(--color-fd-primary);
+  stroke-width: 1.75;
+  stroke-linejoin: miter;
+}
+.pfc-step-initial {
+  fill: none;
+  stroke: var(--color-fd-primary);
+  stroke-width: 1.25;
+  opacity: 0.75;
+}
+.pfc-corner {
+  stroke: var(--color-fd-primary);
+  stroke-width: 1.75;
+}
+.pfc-plus {
+  stroke: var(--color-fd-foreground);
+  stroke-width: 1.75;
+}
+.pfc-terminal {
+  fill: var(--color-fd-primary);
+  stroke: none;
+}
+.pfc-loop {
+  fill: none;
+  stroke: var(--color-fd-foreground);
+  stroke-width: 1.5;
+}
+.pfc-loop-arrow {
+  fill: var(--color-fd-foreground);
+  stroke: none;
+}
+.pfc-sync {
+  fill: var(--color-fd-background);
+  stroke: var(--color-fd-primary);
+  stroke-width: 1.75;
+}
+.pfc-sync-line {
+  fill: none;
+  stroke: var(--color-fd-foreground);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+.pfc-sync-arrow {
+  fill: var(--color-fd-foreground);
+  stroke: none;
+}
+.pfc-sync-label {
+  fill: var(--color-fd-foreground);
+  font-weight: 600;
+}
+.pfc-alloc {
+  fill: var(--color-fd-background);
+  stroke: var(--color-fd-primary);
+  stroke-width: 1.75;
+}
+.pfc-alloc-label {
+  fill: var(--color-fd-foreground);
+  font-weight: 500;
+}
+.pfc-proc-title {
+  fill: var(--color-fd-foreground);
+  font-weight: 700;
+}
+.pfc-goto-label {
+  fill: var(--color-fd-muted-foreground);
+  font-weight: 600;
+}
+.pfc-goto-chip {
+  fill: var(--color-fd-muted);
+  stroke: var(--color-fd-primary);
+  stroke-width: 1.5;
+}
+.pfc-goto-chip-text {
+  fill: var(--color-fd-foreground);
+  font-weight: 600;
+}
+.pfc-note {
+  fill: var(--color-fd-muted);
+  stroke: var(--color-fd-muted-foreground);
+  stroke-width: 1;
+}
+.pfc-note-link {
+  stroke: var(--color-fd-muted-foreground);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+.pfc-note-text {
+  fill: var(--color-fd-muted-foreground);
+}
+
+/* text */
+.pfc-step-label {
+  fill: var(--color-fd-foreground);
+  font-weight: 500;
+}
+.pfc-cond {
+  fill: var(--color-fd-muted-foreground);
+}
+.pfc-title {
+  fill: var(--color-fd-foreground);
+  font-weight: 700;
+}
+
+/* errors */
+.pfc-error {
+  color: var(--pfc-error-color, #e5484d);
+  background: var(--color-fd-muted);
+  border-left: 3px solid var(--pfc-error-color, #e5484d);
+  padding: 8px 12px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+}

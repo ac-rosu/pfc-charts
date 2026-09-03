@@ -137,9 +137,97 @@ async function buildVscode() {
   console.log("vscode: built -> output/vscode");
 }
 
+// Fumadocs adapter — bundled to compiled ESM with @pfc/core inlined and React
+// left external. Shipping compiled JS (not raw TS) makes it resolve like any
+// normal package in a consumer app: no `transpilePackages`, no @pfc/core dep.
+// Type declarations are emitted separately via tsconfig.build.json.
+async function buildFumadocs() {
+  const out = "output/fumadocs";
+  cleanDir(out);
+  mkdirSync(join(out, "dist"), { recursive: true });
+
+  await esbuild.build({
+    entryPoints: {
+      index: "pfc-source/fumadocs/src/index.ts",
+      remark: "pfc-source/fumadocs/src/remark.ts",
+    },
+    bundle: true,
+    external: ["react", "react-dom", "react/jsx-runtime"],
+    platform: "node",
+    format: "esm",
+    target: "es2020",
+    jsx: "automatic",
+    treeShaking: true,
+    sourcemap: watch ? "inline" : false,
+    logLevel: "info",
+    outdir: join(out, "dist"),
+  });
+
+  copyFileSync("pfc-source/fumadocs/styles.css", join(out, "styles.css"));
+  if (existsSync("pfc-source/fumadocs/README.md")) {
+    copyFileSync("pfc-source/fumadocs/README.md", join(out, "README.md"));
+  }
+
+  // hand-written declarations (the public surface is small and stable, and this
+  // avoids tsc pulling the bundled @pfc/core sources into the emit tree)
+  const remarkDts = [
+    "export interface RemarkPfcOptions {",
+    "  component?: string;",
+    "  lang?: string;",
+    "}",
+    "export declare function remarkPfc(options?: RemarkPfcOptions): (tree: unknown) => void;",
+    "declare const _default: typeof remarkPfc;",
+    "export default _default;",
+    "",
+  ].join("\n");
+  writeFileSync(join(out, "dist/remark.d.ts"), remarkDts);
+  writeFileSync(
+    join(out, "dist/index.d.ts"),
+    [
+      "export interface PFCProps {",
+      "  source?: string;",
+      "  children?: string;",
+      "  className?: string;",
+      "}",
+      "export declare function PFC(props: PFCProps): import(\"react\").ReactElement;",
+      "export { remarkPfc, default as remarkPfcDefault } from \"./remark\";",
+      "export type { RemarkPfcOptions } from \"./remark\";",
+      "",
+    ].join("\n")
+  );
+
+  // standalone, installable manifest (core is bundled; React stays a peer dep)
+  writeFileSync(
+    join(out, "package.json"),
+    JSON.stringify(
+      {
+        name: "@pfc/fumadocs",
+        version: "1.0.0",
+        description: "Fumadocs (Next.js + MDX) adapter for PFC Charts (ISA-88).",
+        license: "MIT",
+        author: "ACRO",
+        type: "module",
+        main: "./dist/index.js",
+        types: "./dist/index.d.ts",
+        exports: {
+          ".": { types: "./dist/index.d.ts", default: "./dist/index.js" },
+          "./remark": { types: "./dist/remark.d.ts", default: "./dist/remark.js" },
+          "./styles.css": "./styles.css",
+        },
+        peerDependencies: { react: ">=18" },
+        files: ["dist", "styles.css", "README.md"],
+      },
+      null,
+      2
+    )
+  );
+
+  console.log("fumadocs: built -> output/fumadocs");
+}
+
 // Adapters not yet implemented; folders are scaffolded under pfc-source/.
-const NOT_YET = new Set(["fumadocs"]);
-const builders = { obsidian: buildObsidian, vscode: buildVscode };
+const NOT_YET = new Set();
+const builders = { obsidian: buildObsidian, vscode: buildVscode, fumadocs: buildFumadocs };
 
 async function run() {
   if (target && !builders[target]) {

@@ -16,5 +16,6 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["pfc-source/*/src/**/*.ts"]
+  "include": ["pfc-source/*/src/**/*.ts"],
+  "exclude": ["pfc-source/fumadocs/**"]
 }

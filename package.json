@@ -8,12 +8,15 @@
   "workspaces": [
     "pfc-source/core",
     "pfc-source/obsidian",
-    "pfc-source/vscode"
+    "pfc-source/vscode",
+    "pfc-source/fumadocs"
   ],
   "scripts": {
-    "build": "tsc -noEmit && node build.mjs",
+    "build": "tsc -noEmit && tsc -p pfc-source/fumadocs/tsconfig.json && node build.mjs",
     "build:obsidian": "tsc -noEmit && node build.mjs obsidian",
     "build:vscode": "tsc -noEmit && node build.mjs vscode",
+    "build:fumadocs": "tsc -p pfc-source/fumadocs/tsconfig.json && node build.mjs fumadocs",
+    "pack:fumadocs": "npm run build:fumadocs && npm pack ./output/fumadocs --pack-destination ./output",
     "icon": "node pfc-source/vscode/scripts/make-icon.mjs",
     "dev": "node build.mjs obsidian --watch",
     "test": "node pfc-source/core/esbuild.tests.mjs && node --test \"pfc-source/core/tests-dist/*.test.js\"",

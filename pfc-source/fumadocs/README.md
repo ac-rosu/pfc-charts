@@ -1,19 +1,101 @@
-# PFC Charts — Fumadocs adapter (planned)
+# PFC Charts — Fumadocs adapter (`@pfc/fumadocs`)
 
-This folder will hold the Fumadocs (Next.js + MDX) integration that renders ```pfc```
-code blocks, reusing the shared engine in [`../core`](../core) (imported as `@pfc/core`).
+Renders ISA-88 **Procedure Function Charts** in a [Fumadocs](https://fumadocs.dev)
+(Next.js + MDX) site, reusing the shared engine in [`../core`](../core) (`@pfc/core`).
 
-## Intended approach
+`PFC` is a **React Server Component**: it runs parser + layout + renderer at
+build/request time and emits inline SVG — **no client-side JavaScript**, fully static
+(SSG/SEO friendly). Theming maps onto Fumadocs' `--color-fd-*` tokens.
 
-- **Client component** — a `"use client"` `<PFC source=... />` that runs
-  parser + layout + the DOM renderer in the browser (mirrors the Mermaid component), or
-- **Build-time remark/rehype plugin** — transform `pfc` fences into pre-rendered inline
-  SVG at build time using a string renderer (`renderChartToString`) from `@pfc/core`
-  (best for SSG/SEO, no client JS).
+## Install
 
-Theme by mapping the core CSS onto Fumadocs' tokens (`--color-fd-*`) or `currentColor`.
+The build (`node build.mjs fumadocs`) emits a self-contained, compiled package in
+`output/fumadocs/` — `@pfc/core` is bundled in and React stays a peer dependency, so it
+installs and resolves like any normal package (no `transpilePackages`, no separate
+`@pfc/core`).
 
-Enabling work in core: a string-based `renderChartToString()` alongside the current DOM
-renderer.
+From this repo, pack it:
 
-Build output will land in `output/fumadocs/`.
+```bash
+cd output/fumadocs
+npm pack        # -> pfc-fumadocs-1.0.0.tgz
+```
+
+Then in your docs app:
+
+```bash
+npm install /absolute/path/to/output/fumadocs/pfc-fumadocs-1.0.0.tgz
+```
+
+Import the stylesheet once (e.g. in your root layout or global CSS):
+
+```ts
+import "@pfc/fumadocs/styles.css";
+```
+
+## Usage
+
+### Option A — fenced `pfc` blocks (recommended)
+
+Add the remark plugin to your MDX pipeline and register the `PFC` component in the MDX
+scope, then author charts as normal fenced code blocks.
+
+```ts
+// source.config.ts (Fumadocs MDX) — or your MDX loader options
+import { remarkPfc } from "@pfc/fumadocs/remark";
+
+export default defineConfig({
+  mdxOptions: {
+    remarkPlugins: [remarkPfc()],
+  },
+});
+```
+
+```tsx
+// mdx-components.tsx
+import { PFC } from "@pfc/fumadocs";
+
+export function getMDXComponents(components) {
+  return { PFC, ...components };
+}
+```
+
+````mdx
+```pfc
+pfc Simple Batch
+step "Charge Reactor" :operation
+trans "level >= 500L"
+step "Heat" :operation
+```
+````
+
+The plugin rewrites each ` ```pfc ` fence into `<PFC source="..."/>`.
+
+### Option B — use the component directly
+
+```mdx
+import { PFC } from "@pfc/fumadocs";
+
+<PFC source={`pfc Simple Batch
+step "Charge Reactor" :operation
+trans "level >= 500L"
+step "Heat" :operation`} />
+```
+
+## API
+
+- `PFC` — server component. Props: `source?: string`, `children?: string` (template
+  literal), `className?: string`. Parse errors render as a `.pfc-error` block.
+- `remarkPfc(options?)` — remark plugin. Options: `component` (default `"PFC"`),
+  `lang` (default `"pfc"`). Also the default export.
+- `@pfc/fumadocs/styles.css` — theme stylesheet (Fumadocs tokens).
+
+The chart language is identical across all targets — see
+[../obsidian/DOCUMENTATION.md](../obsidian/DOCUMENTATION.md) and the authoring skill in
+[../../pfc-skills](../../pfc-skills).
+
+## Build
+
+`node build.mjs fumadocs` bundles this adapter to compiled ESM in `output/fumadocs/`
+(`@pfc/core` inlined, React external) with type declarations and an installable
+`package.json`. `npm run build:fumadocs` type-checks (its own `tsconfig.json`) first.
