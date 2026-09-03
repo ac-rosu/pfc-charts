@@ -135,6 +135,7 @@ function splitIdLabel(rest: string): { id: string; label: string } {
 export function parsePfc(source: string): PfcChart {
   const lines: SrcLine[] = [];
   let title = "";
+  let titleSeen = false;
   let terminals = true;
   let loop = false;
 
@@ -143,6 +144,8 @@ export function parsePfc(source: string): PfcChart {
     const stripped = stripComment(rawLines[idx]).trim();
     if (stripped === "" || stripped.startsWith("#")) continue;
     if (firstWord(stripped) === "pfc") {
+      if (titleSeen) throw new ParseError("duplicate 'pfc' title line", idx + 1);
+      titleSeen = true;
       title = stripped.slice(3).trim().replace(/^"|"$/g, "");
       continue;
     }
@@ -160,6 +163,9 @@ export function parsePfc(source: string): PfcChart {
 
   let i = 0;
 
+  // Every sync/transfer marker, tracked with its source line for pairing checks.
+  const allMarkers: Array<{ id: string; transfer: boolean; dir: string; line: number }> = [];
+
   function parseSequence(stops: string[], depth: number): PfcNode[] {
     if (depth > 40) throw new ParseError("nesting too deep", lines[i]?.n ?? 0);
     const seq: PfcNode[] = [];
@@ -169,22 +175,29 @@ export function parsePfc(source: string): PfcChart {
       if (stops.includes(kw)) break;
 
       if (kw === "step") {
-        const { rest, level } = extractLevel(text.slice(4).trim());
-        // Pull out the quoted label; everything else on the line is modifiers/id.
+        const raw = text.slice(4).trim();
+        // Isolate the quoted label first so a ':level'-looking token inside the
+        // label is never mistaken for the level tag.
         let label = "";
         let outside = "";
-        const q = rest.indexOf('"');
+        let level: Level;
+        const q = raw.indexOf('"');
         if (q >= 0) {
-          const q2 = rest.indexOf('"', q + 1);
+          const q2 = raw.indexOf('"', q + 1);
           if (q2 < 0) {
-            label = rest.slice(q + 1);
-            outside = rest.slice(0, q);
+            label = raw.slice(q + 1);
+            outside = raw.slice(0, q);
           } else {
-            label = rest.slice(q + 1, q2);
-            outside = rest.slice(0, q) + " " + rest.slice(q2 + 1);
+            label = raw.slice(q + 1, q2);
+            outside = raw.slice(0, q) + " " + raw.slice(q2 + 1);
           }
+          const ex = extractLevel(outside);
+          outside = ex.rest;
+          level = ex.level;
         } else {
-          label = rest;
+          const ex = extractLevel(raw);
+          label = ex.rest;
+          level = ex.level;
         }
         if (!label.trim()) throw new ParseError("step needs a label", n);
         let initial = false;
@@ -244,6 +257,7 @@ export function parsePfc(source: string): PfcChart {
           const id = text.slice(4).trim().split(/\s+/)[0] || "";
           if (!id) throw new ParseError("sync needs an id", n);
           last.markers.push({ id, transfer: false, dir: "none" });
+          allMarkers.push({ id, transfer: false, dir: "none", line: n });
         } else {
           const toks = text.slice(8).trim().split(/\s+/);
           const id = toks[0] || "";
@@ -252,6 +266,7 @@ export function parsePfc(source: string): PfcChart {
           if (dir !== "in" && dir !== "out")
             throw new ParseError("transfer needs a direction: 'in' or 'out'", n);
           last.markers.push({ id, transfer: true, dir });
+          allMarkers.push({ id, transfer: true, dir, line: n });
         }
         i++;
       } else if (kw === "concurrent") {
@@ -265,8 +280,13 @@ export function parsePfc(source: string): PfcChart {
           i++; // consume 'process'
           processes.push({ label, body: parseSequence(["process", "end"], depth + 1) });
         }
-        if (i >= lines.length || firstWord(lines[i].text) !== "end")
+        if (i >= lines.length)
           throw new ParseError("missing 'end' to close 'concurrent'", n);
+        if (firstWord(lines[i].text) !== "end")
+          throw new ParseError(
+            `unexpected '${lines[i].text}' in 'concurrent' (expected 'process' or 'end')`,
+            lines[i].n
+          );
         i++; // consume 'end'
         if (processes.length < 2)
           throw new ParseError("'concurrent' needs at least two 'process' blocks", n);
@@ -319,6 +339,31 @@ export function parsePfc(source: string): PfcChart {
     if (!idLabel.has(g.target))
       throw new ParseError(`goto target '${g.target}' is not a step id`, g.line);
     g.targetLabel = idLabel.get(g.target)!;
+  }
+
+  // check every sync/transfer id is used exactly twice, and that a transfer pair
+  // is exactly one 'out' and one 'in'
+  const markerGroups = new Map<string, typeof allMarkers>();
+  for (const mk of allMarkers) {
+    const g = markerGroups.get(mk.id);
+    if (g) g.push(mk);
+    else markerGroups.set(mk.id, [mk]);
+  }
+  for (const [id, group] of markerGroups) {
+    if (group.length !== 2)
+      throw new ParseError(
+        `marker '${id}' must be used exactly twice (found ${group.length})`,
+        group[0].line
+      );
+    if (group.some((m) => m.transfer)) {
+      const outs = group.filter((m) => m.transfer && m.dir === "out").length;
+      const ins = group.filter((m) => m.transfer && m.dir === "in").length;
+      if (outs !== 1 || ins !== 1)
+        throw new ParseError(
+          `transfer '${id}' needs exactly one 'out' and one 'in'`,
+          group[0].line
+        );
+    }
   }
 
   return { title, terminals, loop, body };

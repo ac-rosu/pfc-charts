@@ -149,6 +149,12 @@ trans "condition"        # explicit; alias: transition
   means "advance when the previous element completes."
 - `trans ""` draws the two lines with no text (an unconditional/immediate transition).
 
+> Note: some ISA-88 references draw an explicit transition as a single perpendicular
+> line. This plugin draws two short parallel lines to keep the tick legible; it is kept
+> distinct from the double bar of a simultaneous sequence by how the links attach (a
+> transition tick crosses a single link, whereas a simultaneous-sequence bar has the
+> incoming link on one line and the branches on the other).
+
 ### Allocation
 
 ```
@@ -311,6 +317,10 @@ when the source is invalid. Common messages:
 | `missing 'end' to close '…'` | A `parallel`/`selective`/`concurrent` block wasn't closed. |
 | `'sync' must come right after a step or allocation` | Marker not attached to an element. |
 | `transfer needs a direction: 'in' or 'out'` | `transfer` without `in`/`out`. |
+| `marker '<id>' must be used exactly twice (found N)` | A `sync`/`transfer` id not paired exactly twice. |
+| `transfer '<id>' needs exactly one 'out' and one 'in'` | A transfer pair with missing or duplicate directions. |
+| `duplicate 'pfc' title line` | More than one `pfc <title>` line. |
+| `unexpected '<line>' in 'concurrent' (expected 'process' or 'end')` | A stray line where a `process` or `end` was expected. |
 | `'concurrent' must be at the top level` | `concurrent` nested inside a branch. |
 | `'concurrent' must be the only thing in the chart` | Other elements alongside `concurrent`. |
 
@@ -353,6 +363,9 @@ Requires Node 18+.
 npm install
 npm run build      # type-checks (tsc) then bundles to main.js (esbuild)
 npm run dev        # watch mode
+npm test           # bundles and runs the parser/layout unit tests (node --test)
+npm run lint       # eslint
+npm run format     # prettier --write
 ```
 
 Source layout:
@@ -402,7 +415,7 @@ exercise.
 
 ## Symbol coverage (ISA-88 Figure 7)
 
-Every symbol from the S88.02 PFC symbol key is supported:
+All symbols in the S88.02 PFC symbol key (Figure 7) are supported:
 
 - Begin / End placeholders (triangles)
 - Step levels via corner diagonals (phase, operation, unit procedure, procedure)

@@ -57,7 +57,7 @@ Indentation is optional — structure comes from keywords. `//` and `#` start co
 | Statement | Meaning |
 |-----------|---------|
 | `pfc <title>` | Optional chart title (first line). |
-| `step [ID] "Label" [:level] [initial]` | A procedural step. `ID` and `initial` optional. |
+| `step [ID] "Label" [:level] [initial] [+]` | A procedural step. `ID`, `initial`, and `+` optional. `+` (or `contains`/`encapsulates`) marks a step that contains a lower-level PFC. |
 | `trans "condition"` | An **explicit** transition, drawn as two lines with the condition beside it. Alias: `transition`. |
 | `parallel` … `branch` … `end` | Simultaneous (AND) branches — drawn with **double** bars spanning the branches. |
 | `selective` … `branch` … `end` | Alternative (OR) branches — drawn with **single** bars. |
@@ -129,6 +129,7 @@ Requires Node 18+.
 npm install
 npm run build      # type-checks then bundles to main.js
 npm run dev        # watch mode
+npm test           # runs the parser/layout unit tests
 ```
 
 Source layout:

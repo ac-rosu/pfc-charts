@@ -162,6 +162,23 @@ function wrapText(text: string, px: number, maxW: number): string[] {
   const lines: string[] = [];
   let cur = "";
   for (const word of words) {
+    // a single word that cannot fit on its own line is broken between characters
+    if (textWidth(word, px) > maxW) {
+      if (cur) {
+        lines.push(cur);
+        cur = "";
+      }
+      let chunk = "";
+      for (const ch of word) {
+        if (chunk && textWidth(chunk + ch, px) > maxW) {
+          lines.push(chunk);
+          chunk = "";
+        }
+        chunk += ch;
+      }
+      cur = chunk;
+      continue;
+    }
     const trial = cur ? cur + " " + word : word;
     if (textWidth(trial, px) <= maxW || !cur) cur = trial;
     else {

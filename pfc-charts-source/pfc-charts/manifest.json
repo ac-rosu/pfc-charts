@@ -4,6 +4,6 @@
   "version": "1.0.0",
   "minAppVersion": "1.4.0",
   "description": "Render ISA-88 Procedure Function Charts from text in `pfc` code blocks, Mermaid-style.",
-  "author": "You",
+  "author": "ACRO",
   "isDesktopOnly": false
 }
