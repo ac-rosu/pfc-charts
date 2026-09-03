@@ -43,6 +43,13 @@ export interface AllocNode {
   markers: SyncMarker[];
   note: string;
 }
+export interface GotoNode {
+  kind: "goto";
+  target: string;
+  line: number;
+  drawn: boolean; // true = draw the routed back-link; false (default) = label chip only
+  targetLabel: string; // resolved label of the target step (for the chip)
+}
 export interface BranchBlock {
   kind: "parallel" | "selective";
   branches: PfcNode[][];
@@ -51,7 +58,7 @@ export interface ConcurrentBlock {
   kind: "concurrent";
   processes: Array<{ label: string; body: PfcNode[] }>;
 }
-export type PfcNode = StepNode | TransNode | AllocNode | BranchBlock | ConcurrentBlock;
+export type PfcNode = StepNode | TransNode | AllocNode | GotoNode | BranchBlock | ConcurrentBlock;
 
 export interface PfcChart {
   title: string;
@@ -207,6 +214,13 @@ export function parsePfc(source: string): PfcChart {
           : rest;
         seq.push({ kind: "trans", condition: cond });
         i++;
+      } else if (kw === "goto" || kw === "return") {
+        const toks = text.slice(kw.length).trim().split(/\s+/);
+        const target = toks[0] || "";
+        if (!target) throw new ParseError(`'${kw}' needs a target step id`, n);
+        const drawn = (toks[1] || "").toLowerCase() === "line";
+        seq.push({ kind: "goto", target, line: n, drawn, targetLabel: "" });
+        i++;
       } else if (kw === "alloc" || kw === "allocation") {
         const rest = text.slice(kw.length).trim();
         const label = rest.startsWith('"') ? splitIdLabel(rest).label : rest;
@@ -288,5 +302,24 @@ export function parsePfc(source: string): PfcChart {
   if (body.length === 0) throw new ParseError("chart is empty", 0);
   if (body.some((nd) => nd.kind === "concurrent") && body.length > 1)
     throw new ParseError("'concurrent' must be the only thing in the chart", 0);
+
+  // check every goto points at a real step id, and resolve its label
+  const idLabel = new Map<string, string>();
+  const gotos: GotoNode[] = [];
+  const scan = (nodes: PfcNode[]): void => {
+    for (const nd of nodes) {
+      if (nd.kind === "step" && nd.id) idLabel.set(nd.id, nd.label);
+      else if (nd.kind === "goto") gotos.push(nd);
+      else if (nd.kind === "parallel" || nd.kind === "selective") nd.branches.forEach(scan);
+      else if (nd.kind === "concurrent") nd.processes.forEach((p) => scan(p.body));
+    }
+  };
+  scan(body);
+  for (const g of gotos) {
+    if (!idLabel.has(g.target))
+      throw new ParseError(`goto target '${g.target}' is not a step id`, g.line);
+    g.targetLabel = idLabel.get(g.target)!;
+  }
+
   return { title, terminals, loop, body };
 }

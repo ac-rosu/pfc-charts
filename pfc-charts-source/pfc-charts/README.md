@@ -68,6 +68,7 @@ Indentation is optional — structure comes from keywords. `//` and `#` start co
 | `loop` | Directive: make the chart a cycle — the end links back to the start. |
 | `concurrent` … `process ["label"]` … `end` | Two or more **independent looping lanes**, each its own cycle (no begin/end, no convergence). Each `process` may take an optional label shown above the lane. Use `sync`/`transfer` to connect them. Must be the whole chart. |
 | `note "<text>"` | A boxed annotation attached to the **step or allocation above it**, drawn to the side with a leader line. Text wraps automatically. |
+| `goto <id>` | Jump to an earlier step (its **id** — the bare word before the label, e.g. `step HEAT "Heat"`). Draws a compact **"↺ label" chip** naming the target (no wire). Add `line` (`goto <id> line`) to draw the routed back-link instead. Alias: `return`. Put it under a `trans` (usually one branch of a `selective`) for a conditional retry. |
 
 ### Transitions: implicit vs explicit
 

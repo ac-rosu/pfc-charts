@@ -32,6 +32,12 @@ const TERM_GAP = 18; // stub between a terminal and the first/last element
 const LOOP_GAP = 26; // horizontal offset of the loop-back channel from content
 const LOOP_STUB = 20; // vertical clearance above/below the chart for the loop
 const PROCESS_GAP = 46; // gap between concurrent process columns
+const GOTO_H = 12; // vertical slot a goto occupies on the link
+const GOTO_GAP = 26; // horizontal offset of a goto back-channel from content
+const GOTO_STUB = 14; // clearance above the target step for the back-link
+const CHIP_H = 26; // jump-label chip height
+const CHIP_FONT = 12;
+const CHIP_PAD = 12;
 const PROC_TITLE_H = 24; // space above a process lane for its label
 const PROC_TITLE_FONT = 13;
 
@@ -100,6 +106,15 @@ export interface Layout {
   beginTri: { cx: number; top: number; w: number; h: number } | null;
   endTri: { cx: number; top: number; w: number; h: number } | null;
   loops: Array<{ points: Array<[number, number]>; arrow: { cx: number; y: number } }>;
+  gotoLinks: Array<{
+    points: Array<[number, number]>;
+    arrow: { cx: number; y: number };
+    label: string;
+    labelX: number;
+    labelY: number;
+    labelAnchor: "start" | "end";
+  }>;
+  gotoChips: Array<{ x: number; y: number; w: number; h: number; text: string }>;
   processTitles: Array<{ cx: number; y: number; label: string }>;
   notes: Array<{
     x: number;
@@ -196,6 +211,13 @@ function measureNode(node: PfcNode): Measure {
     const reserve = node.markers.length ? SYNC_RESERVE : 0;
     const noteR = node.note ? NOTE_RESERVE : 0;
     m = { leftExt: w / 2 + reserve, rightExt: w / 2 + reserve + noteR, h: ALLOC_H, w };
+  } else if (node.kind === "goto") {
+    if (node.drawn) {
+      m = { leftExt: 6, rightExt: 6, h: GOTO_H };
+    } else {
+      const w = textWidth("\u21BA  " + node.targetLabel, CHIP_FONT) + 2 * CHIP_PAD;
+      m = { leftExt: w / 2, rightExt: w / 2, h: CHIP_H, w };
+    }
   } else if (node.kind === "parallel" || node.kind === "selective") {
     const bms = node.branches.map(measureSeq);
     let x = 0;
@@ -258,6 +280,8 @@ export function layoutChart(chart: PfcChart): Layout {
     beginTri: null,
     endTri: null,
     loops: [],
+    gotoLinks: [],
+    gotoChips: [],
     processTitles: [],
     notes: [],
     syncTabs: [],
@@ -279,7 +303,11 @@ export function layoutChart(chart: PfcChart): Layout {
   // Put the spine on the SVG centerline so the trunk is centered, giving both
   // sides equal room (right side carries the transition condition labels).
   const half = Math.max(bodyM.leftExt, bodyM.rightExt);
-  const rootSpine = MARGIN + half;
+  // If the chart both loops (right channel) and has gotos, reserve a left gutter so
+  // the goto back-links route on the opposite side and never crowd the loop.
+  const gotoCount = countGotos(chart.body);
+  const leftGutter = chart.loop && gotoCount > 0 ? (gotoCount + 1) * GOTO_GAP : 0;
+  const rootSpine = MARGIN + leftGutter + half;
 
   // A looping chart is a cycle: no begin/end placeholders, and it needs vertical
   // clearance above the first element and below the last for the return channel.
@@ -308,17 +336,18 @@ export function layoutChart(chart: PfcChart): Layout {
     bottom += TERM_H;
   }
 
-  out.width = 2 * half + 2 * MARGIN;
+  out.width = 2 * half + 2 * MARGIN + leftGutter;
 
   // loop-back: exit the last element, route up the right channel, re-enter the top
   if (chart.loop) {
-    const channelX = MARGIN + 2 * half + LOOP_GAP;
+    const channelX = rootSpine + half + LOOP_GAP;
     out.loops.push(makeLoop(rootSpine, firstY, bottom, channelX));
     out.width = channelX + MARGIN;
     bottom += LOOP_STUB;
   }
 
   out.height = bottom + MARGIN;
+  resolveGotos(out, leftGutter);
   return out;
 }
 
@@ -345,6 +374,62 @@ function makeLoop(
   };
 }
 
+// Route each goto as a back-link from its origin, out to a side channel, and up
+// into the top of the target step (merging with that step's incoming link).
+// When leftGutter > 0 the gotos route on the LEFT in the reserved gutter (used when a
+// whole-chart loop already occupies the right); otherwise they route on the right.
+function resolveGotos(out: Layout, leftGutter: number): void {
+  const gotos = ((out as any)._gotos ?? []) as Array<{ ox: number; oy: number; target: string }>;
+  const pos = ((out as any)._stepPos ?? {}) as Record<string, { x: number; y: number }>;
+  if (!gotos.length) return;
+
+  if (leftGutter > 0) {
+    gotos.forEach((g, i) => {
+      const t = pos[g.target];
+      if (!t) return;
+      const ch = MARGIN + leftGutter - GOTO_GAP * (i + 1);
+      const topY = t.y - GOTO_STUB;
+      out.gotoLinks.push({
+        points: [[g.ox, g.oy], [ch, g.oy], [ch, topY], [t.x, topY], [t.x, t.y]],
+        arrow: { cx: t.x, y: t.y },
+        label: g.target,
+        labelX: g.ox - 8,
+        labelY: g.oy - 6,
+        labelAnchor: "end",
+      });
+    });
+    return;
+  }
+
+  let ch = out.width - MARGIN + GOTO_GAP;
+  for (const g of gotos) {
+    const t = pos[g.target];
+    if (!t) continue;
+    const topY = t.y - GOTO_STUB;
+    out.gotoLinks.push({
+      points: [[g.ox, g.oy], [ch, g.oy], [ch, topY], [t.x, topY], [t.x, t.y]],
+      arrow: { cx: t.x, y: t.y },
+      label: g.target,
+      labelX: g.ox + 8,
+      labelY: g.oy - 6,
+      labelAnchor: "start",
+    });
+    ch += GOTO_GAP;
+  }
+  out.width = Math.max(out.width, ch - GOTO_GAP + MARGIN);
+}
+
+// count goto nodes anywhere in the tree
+function countGotos(nodes: PfcNode[]): number {
+  let n = 0;
+  for (const nd of nodes) {
+    if (nd.kind === "goto") n += nd.drawn ? 1 : 0;
+    else if (nd.kind === "parallel" || nd.kind === "selective") nd.branches.forEach((b) => (n += countGotos(b)));
+    else if (nd.kind === "concurrent") nd.processes.forEach((p) => (n += countGotos(p.body)));
+  }
+  return n;
+}
+
 // Independent looping processes side by side, joined by synchronization lines.
 // Each process is its own cyclic lane (no begin/end, no convergence): process 0
 // loops on the left, the rest loop on the right.
@@ -356,8 +441,11 @@ function layoutConcurrent(node: { processes: Array<{ label: string; body: PfcNod
   const titleBandY = headerY;
   const topY = headerY + (hasTitles ? PROC_TITLE_H : 0) + LOOP_STUB;
 
-  const leftChannelX = MARGIN + 8;
-  let x = MARGIN + LOOP_GAP; // room for process 0's left loop channel
+  // reserve left space for the left lane's own goto channels
+  const g0 = countGotos(processes[0].body);
+  const leftPad = g0 * GOTO_GAP;
+  const leftChannelX = MARGIN + 8 + leftPad;
+  let x = MARGIN + LOOP_GAP + leftPad; // room for lane 0's left loop channel
   const spines: number[] = [];
   pms.forEach((pm) => {
     spines.push(x + pm.leftExt);
@@ -365,10 +453,15 @@ function layoutConcurrent(node: { processes: Array<{ label: string; body: PfcNod
   });
   const rightEdge = x - PROCESS_GAP;
 
+  const gotoStore = ((out as any)._gotos ??= []) as Array<any>;
+  const procGotos: Array<Array<{ ox: number; oy: number; target: string }>> = [];
   const bottoms = processes.map((proc, i) => {
     if (proc.label)
       out.processTitles.push({ cx: spines[i], y: titleBandY + PROC_TITLE_FONT, label: proc.label });
-    return placeSeq(proc.body, spines[i], topY, out);
+    const before = gotoStore.length;
+    const b = placeSeq(proc.body, spines[i], topY, out);
+    procGotos.push(gotoStore.slice(before));
+    return b;
   });
 
   pairSyncMarkers(out);
@@ -378,7 +471,41 @@ function layoutConcurrent(node: { processes: Array<{ label: string; body: PfcNod
     out.loops.push(makeLoop(spines[i], topY, bottoms[i], channelX));
   });
 
-  out.width = rightEdge + LOOP_GAP * (processes.length - 1) + MARGIN;
+  // route each lane's gotos on that lane's own side (lane 0 → left, others → right)
+  const pos = ((out as any)._stepPos ?? {}) as Record<string, { x: number; y: number }>;
+  let rightCh = rightEdge + LOOP_GAP * (processes.length - 1) + GOTO_GAP;
+  let maxRight = rightEdge + LOOP_GAP * (processes.length - 1);
+  procGotos.forEach((gs, i) => {
+    gs.forEach((g, k) => {
+      const t = pos[g.target];
+      if (!t) return;
+      const topYt = t.y - GOTO_STUB;
+      let ch: number;
+      let anchor: "start" | "end";
+      let lx: number;
+      if (i === 0) {
+        ch = MARGIN + 8 + k * GOTO_GAP; // left of lane 0, local to it
+        anchor = "end";
+        lx = g.ox - 8;
+      } else {
+        ch = rightCh;
+        rightCh += GOTO_GAP;
+        maxRight = Math.max(maxRight, ch);
+        anchor = "start";
+        lx = g.ox + 8;
+      }
+      out.gotoLinks.push({
+        points: [[g.ox, g.oy], [ch, g.oy], [ch, topYt], [t.x, topYt], [t.x, t.y]],
+        arrow: { cx: t.x, y: t.y },
+        label: g.target,
+        labelX: lx,
+        labelY: g.oy - 6,
+        labelAnchor: anchor,
+      });
+    });
+  });
+
+  out.width = maxRight + MARGIN;
   out.height = Math.max(...bottoms) + LOOP_STUB + MARGIN;
 }
 
@@ -461,6 +588,7 @@ function placeNode(node: PfcNode, spineX: number, cy: number, out: Layout): numb
         store.push({ ...mk, sx: spineX - m.w! / 2, sy: cy, sw: m.w!, sh: STEP_H });
     }
     if (node.note) emitNote(out, node.note, spineX - m.w! / 2, cy, m.w!, STEP_H);
+    if (node.id) (((out as any)._stepPos ??= {}) as any)[node.id] = { x: spineX, y: cy };
     return cy + STEP_H;
   }
   if (node.kind === "trans") {
@@ -477,6 +605,22 @@ function placeNode(node: PfcNode, spineX: number, cy: number, out: Layout): numb
     }
     if (node.note) emitNote(out, node.note, spineX - m.w! / 2, cy, m.w!, ALLOC_H);
     return cy + ALLOC_H;
+  }
+
+  if (node.kind === "goto") {
+    if (node.drawn) {
+      out.lines.push({ x1: spineX, y1: cy, x2: spineX, y2: cy + GOTO_H / 2 });
+      (((out as any)._gotos ??= []) as Array<any>).push({ ox: spineX, oy: cy, target: node.target });
+      return cy + GOTO_H;
+    }
+    out.gotoChips.push({
+      x: spineX - m.w! / 2,
+      y: cy,
+      w: m.w!,
+      h: CHIP_H,
+      text: "\u21BA  " + node.targetLabel,
+    });
+    return cy + CHIP_H;
   }
 
   if (node.kind !== "parallel" && node.kind !== "selective") return cy; // concurrent handled elsewhere

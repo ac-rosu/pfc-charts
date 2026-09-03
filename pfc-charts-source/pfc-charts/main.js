@@ -163,6 +163,14 @@ function parsePfc(source) {
         const cond = rest.startsWith('"') ? splitIdLabel(rest).label : rest;
         seq.push({ kind: "trans", condition: cond });
         i++;
+      } else if (kw === "goto" || kw === "return") {
+        const toks = text.slice(kw.length).trim().split(/\s+/);
+        const target = toks[0] || "";
+        if (!target)
+          throw new ParseError(`'${kw}' needs a target step id`, n);
+        const drawn = (toks[1] || "").toLowerCase() === "line";
+        seq.push({ kind: "goto", target, line: n, drawn, targetLabel: "" });
+        i++;
       } else if (kw === "alloc" || kw === "allocation") {
         const rest = text.slice(kw.length).trim();
         const label = rest.startsWith('"') ? splitIdLabel(rest).label : rest;
@@ -248,6 +256,26 @@ function parsePfc(source) {
     throw new ParseError("chart is empty", 0);
   if (body.some((nd) => nd.kind === "concurrent") && body.length > 1)
     throw new ParseError("'concurrent' must be the only thing in the chart", 0);
+  const idLabel = /* @__PURE__ */ new Map();
+  const gotos = [];
+  const scan = (nodes) => {
+    for (const nd of nodes) {
+      if (nd.kind === "step" && nd.id)
+        idLabel.set(nd.id, nd.label);
+      else if (nd.kind === "goto")
+        gotos.push(nd);
+      else if (nd.kind === "parallel" || nd.kind === "selective")
+        nd.branches.forEach(scan);
+      else if (nd.kind === "concurrent")
+        nd.processes.forEach((p) => scan(p.body));
+    }
+  };
+  scan(body);
+  for (const g of gotos) {
+    if (!idLabel.has(g.target))
+      throw new ParseError(`goto target '${g.target}' is not a step id`, g.line);
+    g.targetLabel = idLabel.get(g.target);
+  }
   return { title, terminals, loop, body };
 }
 
@@ -274,6 +302,12 @@ var TERM_GAP = 18;
 var LOOP_GAP = 26;
 var LOOP_STUB = 20;
 var PROCESS_GAP = 46;
+var GOTO_H = 12;
+var GOTO_GAP = 26;
+var GOTO_STUB = 14;
+var CHIP_H = 26;
+var CHIP_FONT = 12;
+var CHIP_PAD = 12;
 var PROC_TITLE_H = 24;
 var PROC_TITLE_FONT = 13;
 var NOTE_W = 150;
@@ -357,6 +391,13 @@ function measureNode(node) {
     const reserve = node.markers.length ? SYNC_RESERVE : 0;
     const noteR = node.note ? NOTE_RESERVE : 0;
     m = { leftExt: w / 2 + reserve, rightExt: w / 2 + reserve + noteR, h: ALLOC_H, w };
+  } else if (node.kind === "goto") {
+    if (node.drawn) {
+      m = { leftExt: 6, rightExt: 6, h: GOTO_H };
+    } else {
+      const w = textWidth("\u21BA  " + node.targetLabel, CHIP_FONT) + 2 * CHIP_PAD;
+      m = { leftExt: w / 2, rightExt: w / 2, h: CHIP_H, w };
+    }
   } else if (node.kind === "parallel" || node.kind === "selective") {
     const bms = node.branches.map(measureSeq);
     let x = 0;
@@ -419,6 +460,8 @@ function layoutChart(chart) {
     beginTri: null,
     endTri: null,
     loops: [],
+    gotoLinks: [],
+    gotoChips: [],
     processTitles: [],
     notes: [],
     syncTabs: [],
@@ -435,7 +478,9 @@ function layoutChart(chart) {
   }
   const bodyM = measureSeq(chart.body);
   const half = Math.max(bodyM.leftExt, bodyM.rightExt);
-  const rootSpine = MARGIN + half;
+  const gotoCount = countGotos(chart.body);
+  const leftGutter = chart.loop && gotoCount > 0 ? (gotoCount + 1) * GOTO_GAP : 0;
+  const rootSpine = MARGIN + leftGutter + half;
   const showTerminals = chart.terminals && !chart.loop;
   const headerY = MARGIN + (chart.title ? TITLE_H : 0);
   let y = headerY + (chart.loop ? LOOP_STUB : 0);
@@ -454,14 +499,15 @@ function layoutChart(chart) {
     out.endTri = { cx: rootSpine, top: bottom, w: TERM_W, h: TERM_H };
     bottom += TERM_H;
   }
-  out.width = 2 * half + 2 * MARGIN;
+  out.width = 2 * half + 2 * MARGIN + leftGutter;
   if (chart.loop) {
-    const channelX = MARGIN + 2 * half + LOOP_GAP;
+    const channelX = rootSpine + half + LOOP_GAP;
     out.loops.push(makeLoop(rootSpine, firstY, bottom, channelX));
     out.width = channelX + MARGIN;
     bottom += LOOP_STUB;
   }
   out.height = bottom + MARGIN;
+  resolveGotos(out, leftGutter);
   return out;
 }
 function makeLoop(spineX, firstY, bottom, channelX) {
@@ -479,32 +525,127 @@ function makeLoop(spineX, firstY, bottom, channelX) {
     arrow: { cx: spineX, y: firstY }
   };
 }
+function resolveGotos(out, leftGutter) {
+  var _a, _b;
+  const gotos = (_a = out._gotos) != null ? _a : [];
+  const pos = (_b = out._stepPos) != null ? _b : {};
+  if (!gotos.length)
+    return;
+  if (leftGutter > 0) {
+    gotos.forEach((g, i) => {
+      const t = pos[g.target];
+      if (!t)
+        return;
+      const ch2 = MARGIN + leftGutter - GOTO_GAP * (i + 1);
+      const topY = t.y - GOTO_STUB;
+      out.gotoLinks.push({
+        points: [[g.ox, g.oy], [ch2, g.oy], [ch2, topY], [t.x, topY], [t.x, t.y]],
+        arrow: { cx: t.x, y: t.y },
+        label: g.target,
+        labelX: g.ox - 8,
+        labelY: g.oy - 6,
+        labelAnchor: "end"
+      });
+    });
+    return;
+  }
+  let ch = out.width - MARGIN + GOTO_GAP;
+  for (const g of gotos) {
+    const t = pos[g.target];
+    if (!t)
+      continue;
+    const topY = t.y - GOTO_STUB;
+    out.gotoLinks.push({
+      points: [[g.ox, g.oy], [ch, g.oy], [ch, topY], [t.x, topY], [t.x, t.y]],
+      arrow: { cx: t.x, y: t.y },
+      label: g.target,
+      labelX: g.ox + 8,
+      labelY: g.oy - 6,
+      labelAnchor: "start"
+    });
+    ch += GOTO_GAP;
+  }
+  out.width = Math.max(out.width, ch - GOTO_GAP + MARGIN);
+}
+function countGotos(nodes) {
+  let n = 0;
+  for (const nd of nodes) {
+    if (nd.kind === "goto")
+      n += nd.drawn ? 1 : 0;
+    else if (nd.kind === "parallel" || nd.kind === "selective")
+      nd.branches.forEach((b) => n += countGotos(b));
+    else if (nd.kind === "concurrent")
+      nd.processes.forEach((p) => n += countGotos(p.body));
+  }
+  return n;
+}
 function layoutConcurrent(node, out) {
+  var _a, _b;
   const processes = node.processes;
   const pms = processes.map((p) => measureSeq(p.body));
   const hasTitles = processes.some((p) => p.label);
   const headerY = MARGIN + (out.title ? TITLE_H : 0);
   const titleBandY = headerY;
   const topY = headerY + (hasTitles ? PROC_TITLE_H : 0) + LOOP_STUB;
-  const leftChannelX = MARGIN + 8;
-  let x = MARGIN + LOOP_GAP;
+  const g0 = countGotos(processes[0].body);
+  const leftPad = g0 * GOTO_GAP;
+  const leftChannelX = MARGIN + 8 + leftPad;
+  let x = MARGIN + LOOP_GAP + leftPad;
   const spines = [];
   pms.forEach((pm) => {
     spines.push(x + pm.leftExt);
     x += pm.leftExt + pm.rightExt + PROCESS_GAP;
   });
   const rightEdge = x - PROCESS_GAP;
+  const gotoStore = (_a = out._gotos) != null ? _a : out._gotos = [];
+  const procGotos = [];
   const bottoms = processes.map((proc, i) => {
     if (proc.label)
       out.processTitles.push({ cx: spines[i], y: titleBandY + PROC_TITLE_FONT, label: proc.label });
-    return placeSeq(proc.body, spines[i], topY, out);
+    const before = gotoStore.length;
+    const b = placeSeq(proc.body, spines[i], topY, out);
+    procGotos.push(gotoStore.slice(before));
+    return b;
   });
   pairSyncMarkers(out);
   processes.forEach((_proc, i) => {
     const channelX = i === 0 ? leftChannelX : rightEdge + LOOP_GAP * i;
     out.loops.push(makeLoop(spines[i], topY, bottoms[i], channelX));
   });
-  out.width = rightEdge + LOOP_GAP * (processes.length - 1) + MARGIN;
+  const pos = (_b = out._stepPos) != null ? _b : {};
+  let rightCh = rightEdge + LOOP_GAP * (processes.length - 1) + GOTO_GAP;
+  let maxRight = rightEdge + LOOP_GAP * (processes.length - 1);
+  procGotos.forEach((gs, i) => {
+    gs.forEach((g, k) => {
+      const t = pos[g.target];
+      if (!t)
+        return;
+      const topYt = t.y - GOTO_STUB;
+      let ch;
+      let anchor;
+      let lx;
+      if (i === 0) {
+        ch = MARGIN + 8 + k * GOTO_GAP;
+        anchor = "end";
+        lx = g.ox - 8;
+      } else {
+        ch = rightCh;
+        rightCh += GOTO_GAP;
+        maxRight = Math.max(maxRight, ch);
+        anchor = "start";
+        lx = g.ox + 8;
+      }
+      out.gotoLinks.push({
+        points: [[g.ox, g.oy], [ch, g.oy], [ch, topYt], [t.x, topYt], [t.x, t.y]],
+        arrow: { cx: t.x, y: t.y },
+        label: g.target,
+        labelX: lx,
+        labelY: g.oy - 6,
+        labelAnchor: anchor
+      });
+    });
+  });
+  out.width = maxRight + MARGIN;
   out.height = Math.max(...bottoms) + LOOP_STUB + MARGIN;
 }
 function pairSyncMarkers(out) {
@@ -558,7 +699,7 @@ function placeSeq(seq, spineX, startY, out) {
   return cy;
 }
 function placeNode(node, spineX, cy, out) {
-  var _a, _b;
+  var _a, _b, _c, _d;
   const m = measureNode(node);
   if (node.kind === "step") {
     out.steps.push({
@@ -578,6 +719,8 @@ function placeNode(node, spineX, cy, out) {
     }
     if (node.note)
       emitNote(out, node.note, spineX - m.w / 2, cy, m.w, STEP_H);
+    if (node.id)
+      ((_b = out._stepPos) != null ? _b : out._stepPos = {})[node.id] = { x: spineX, y: cy };
     return cy + STEP_H;
   }
   if (node.kind === "trans") {
@@ -588,13 +731,28 @@ function placeNode(node, spineX, cy, out) {
   if (node.kind === "alloc") {
     out.allocs.push({ cx: spineX, cy: cy + ALLOC_H / 2, w: m.w, h: ALLOC_H, label: node.label });
     if (node.markers.length) {
-      const store = (_b = out._markers) != null ? _b : out._markers = [];
+      const store = (_c = out._markers) != null ? _c : out._markers = [];
       for (const mk of node.markers)
         store.push({ ...mk, sx: spineX - m.w / 2, sy: cy, sw: m.w, sh: ALLOC_H });
     }
     if (node.note)
       emitNote(out, node.note, spineX - m.w / 2, cy, m.w, ALLOC_H);
     return cy + ALLOC_H;
+  }
+  if (node.kind === "goto") {
+    if (node.drawn) {
+      out.lines.push({ x1: spineX, y1: cy, x2: spineX, y2: cy + GOTO_H / 2 });
+      ((_d = out._gotos) != null ? _d : out._gotos = []).push({ ox: spineX, oy: cy, target: node.target });
+      return cy + GOTO_H;
+    }
+    out.gotoChips.push({
+      x: spineX - m.w / 2,
+      y: cy,
+      w: m.w,
+      h: CHIP_H,
+      text: "\u21BA  " + node.targetLabel
+    });
+    return cy + CHIP_H;
   }
   if (node.kind !== "parallel" && node.kind !== "selective")
     return cy;
@@ -635,6 +793,53 @@ function svgEl(name, attrs) {
   for (const k in attrs)
     e.setAttribute(k, String(attrs[k]));
   return e;
+}
+var HOP_R = 5;
+var XPS = 1.5;
+var isH = (s) => s.y1 === s.y2 && s.x1 !== s.x2;
+var isV = (s) => s.x1 === s.x2 && s.y1 !== s.y2;
+function polySegs(points, cls) {
+  const out = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const [x1, y1] = points[i];
+    const [x2, y2] = points[i + 1];
+    out.push({ x1, y1, x2, y2, cls, hops: [] });
+  }
+  return out;
+}
+function computeHops(all) {
+  const hs = all.filter(isH);
+  const vs = all.filter(isV);
+  for (const h of hs) {
+    const y = h.y1;
+    const lo = Math.min(h.x1, h.x2);
+    const hi = Math.max(h.x1, h.x2);
+    for (const v of vs) {
+      const vx = v.x1;
+      const vlo = Math.min(v.y1, v.y2);
+      const vhi = Math.max(v.y1, v.y2);
+      if (vx > lo + XPS && vx < hi - XPS && y > vlo + XPS && y < vhi - XPS)
+        h.hops.push(vx);
+    }
+    h.hops.sort((a, b) => a - b);
+  }
+}
+function drawSeg(svg, s) {
+  if (!isH(s) || s.hops.length === 0) {
+    svg.appendChild(svgEl("line", { x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2, class: s.cls }));
+    return;
+  }
+  const y = s.y1;
+  const left = Math.min(s.x1, s.x2);
+  const right = Math.max(s.x1, s.x2);
+  let d = `M ${left} ${y}`;
+  for (const hx of s.hops) {
+    if (hx <= left + HOP_R || hx >= right - HOP_R)
+      continue;
+    d += ` L ${hx - HOP_R} ${y} A ${HOP_R} ${HOP_R} 0 0 0 ${hx + HOP_R} ${y}`;
+  }
+  d += ` L ${right} ${y}`;
+  svg.appendChild(svgEl("path", { d, class: s.cls, fill: "none" }));
 }
 var LEVEL_MARKS = {
   phase: 1,
@@ -697,14 +902,20 @@ function renderChart(chart) {
       svg.appendChild(t);
     });
   }
-  for (const ln of L.lines) {
-    svg.appendChild(svgEl("line", { x1: ln.x1, y1: ln.y1, x2: ln.x2, y2: ln.y2, class: "pfc-line" }));
-  }
+  const lineSegs = L.lines.map((ln) => ({ ...ln, cls: "pfc-line", hops: [] }));
+  const barSegs = [];
   for (const b of L.bars) {
-    svg.appendChild(svgEl("line", { x1: b.x1, y1: b.y, x2: b.x2, y2: b.y, class: "pfc-bar" }));
+    barSegs.push({ x1: b.x1, y1: b.y, x2: b.x2, y2: b.y, cls: "pfc-bar", hops: [] });
     if (b.double)
-      svg.appendChild(svgEl("line", { x1: b.x1, y1: b.y + b.gap, x2: b.x2, y2: b.y + b.gap, class: "pfc-bar" }));
+      barSegs.push({ x1: b.x1, y1: b.y + b.gap, x2: b.x2, y2: b.y + b.gap, cls: "pfc-bar", hops: [] });
   }
+  const loopSegs = L.loops.flatMap((lp) => polySegs(lp.points, "pfc-loop"));
+  const gotoSegs = L.gotoLinks.flatMap((g) => polySegs(g.points, "pfc-loop"));
+  computeHops([...lineSegs, ...barSegs, ...loopSegs, ...gotoSegs]);
+  for (const s of lineSegs)
+    drawSeg(svg, s);
+  for (const s of barSegs)
+    drawSeg(svg, s);
   for (const tr of L.transes) {
     svg.appendChild(
       svgEl("line", { x1: tr.x - 15, y1: tr.y - 3, x2: tr.x + 15, y2: tr.y - 3, class: "pfc-trans-tick" })
@@ -785,10 +996,9 @@ function renderChart(chart) {
       })
     );
   }
+  for (const s of loopSegs)
+    drawSeg(svg, s);
   for (const lp of L.loops) {
-    svg.appendChild(
-      svgEl("polyline", { points: lp.points.map((p) => p.join(",")).join(" "), class: "pfc-loop" })
-    );
     const { cx, y } = lp.arrow;
     svg.appendChild(
       svgEl("polygon", {
@@ -851,6 +1061,42 @@ function renderChart(chart) {
     });
     lbl.textContent = t.label;
     svg.appendChild(lbl);
+  }
+  for (const s of gotoSegs)
+    drawSeg(svg, s);
+  for (const g of L.gotoLinks) {
+    svg.appendChild(
+      svgEl("polygon", {
+        points: `${g.arrow.cx - 5},${g.arrow.y - 9} ${g.arrow.cx + 5},${g.arrow.y - 9} ${g.arrow.cx},${g.arrow.y}`,
+        class: "pfc-loop-arrow"
+      })
+    );
+    const lbl = svgEl("text", {
+      x: g.labelX,
+      y: g.labelY,
+      class: "pfc-goto-label",
+      "text-anchor": g.labelAnchor,
+      "font-size": 11,
+      "font-family": L.fontFamily
+    });
+    lbl.textContent = "\u2191 " + g.label;
+    svg.appendChild(lbl);
+  }
+  for (const c of L.gotoChips) {
+    svg.appendChild(
+      svgEl("rect", { x: c.x, y: c.y, width: c.w, height: c.h, rx: c.h / 2, class: "pfc-goto-chip" })
+    );
+    const t = svgEl("text", {
+      x: c.x + c.w / 2,
+      y: c.y + c.h / 2,
+      class: "pfc-goto-chip-text",
+      "text-anchor": "middle",
+      "dominant-baseline": "central",
+      "font-size": 12,
+      "font-family": L.fontFamily
+    });
+    t.textContent = c.text;
+    svg.appendChild(t);
   }
   for (const pt of L.processTitles) {
     const t = svgEl("text", {

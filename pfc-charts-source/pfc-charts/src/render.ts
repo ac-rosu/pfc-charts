@@ -11,6 +11,69 @@ function svgEl(name: string, attrs: Record<string, string | number>): SVGElement
   return e;
 }
 
+// ---- line jumpovers ---------------------------------------------------------
+// Horizontal connectors hop over vertical ones where they truly cross (the
+// intersection is interior to both segments — T-junctions where a link connects
+// to a bar are left alone).
+interface Seg {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  cls: string;
+  hops: number[];
+}
+const HOP_R = 5;
+const XPS = 1.5; // endpoint exclusion
+
+const isH = (s: Seg) => s.y1 === s.y2 && s.x1 !== s.x2;
+const isV = (s: Seg) => s.x1 === s.x2 && s.y1 !== s.y2;
+
+function polySegs(points: Array<[number, number]>, cls: string): Seg[] {
+  const out: Seg[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const [x1, y1] = points[i];
+    const [x2, y2] = points[i + 1];
+    out.push({ x1, y1, x2, y2, cls, hops: [] });
+  }
+  return out;
+}
+
+function computeHops(all: Seg[]): void {
+  const hs = all.filter(isH);
+  const vs = all.filter(isV);
+  for (const h of hs) {
+    const y = h.y1;
+    const lo = Math.min(h.x1, h.x2);
+    const hi = Math.max(h.x1, h.x2);
+    for (const v of vs) {
+      const vx = v.x1;
+      const vlo = Math.min(v.y1, v.y2);
+      const vhi = Math.max(v.y1, v.y2);
+      if (vx > lo + XPS && vx < hi - XPS && y > vlo + XPS && y < vhi - XPS) h.hops.push(vx);
+    }
+    h.hops.sort((a, b) => a - b);
+  }
+}
+
+// draw one segment, inserting little arcs where a horizontal segment hops
+function drawSeg(svg: SVGElement, s: Seg): void {
+  if (!isH(s) || s.hops.length === 0) {
+    svg.appendChild(svgEl("line", { x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2, class: s.cls }));
+    return;
+  }
+  const y = s.y1;
+  const left = Math.min(s.x1, s.x2);
+  const right = Math.max(s.x1, s.x2);
+  let d = `M ${left} ${y}`;
+  for (const hx of s.hops) {
+    if (hx <= left + HOP_R || hx >= right - HOP_R) continue;
+    d += ` L ${hx - HOP_R} ${y} A ${HOP_R} ${HOP_R} 0 0 0 ${hx + HOP_R} ${y}`;
+  }
+  d += ` L ${right} ${y}`;
+  svg.appendChild(svgEl("path", { d, class: s.cls, fill: "none" }));
+}
+
 type Corner = "tl" | "tr" | "bl" | "br";
 
 // Level is shown by small diagonal lines drawn *across* the corners of an
@@ -87,17 +150,23 @@ export function renderChart(chart: PfcChart): SVGElement {
     });
   }
 
-  // connectors first (so nodes sit on top)
-  for (const ln of L.lines) {
-    svg.appendChild(svgEl("line", { x1: ln.x1, y1: ln.y1, x2: ln.x2, y2: ln.y2, class: "pfc-line" }));
+  // collect all solid connector segments and compute their crossings once
+  const lineSegs: Seg[] = L.lines.map((ln) => ({ ...ln, cls: "pfc-line", hops: [] }));
+  const barSegs: Seg[] = [];
+  for (const b of L.bars) {
+    barSegs.push({ x1: b.x1, y1: b.y, x2: b.x2, y2: b.y, cls: "pfc-bar", hops: [] });
+    if (b.double)
+      barSegs.push({ x1: b.x1, y1: b.y + b.gap, x2: b.x2, y2: b.y + b.gap, cls: "pfc-bar", hops: [] });
   }
+  const loopSegs: Seg[] = L.loops.flatMap((lp) => polySegs(lp.points, "pfc-loop"));
+  const gotoSegs: Seg[] = L.gotoLinks.flatMap((g) => polySegs(g.points, "pfc-loop"));
+  computeHops([...lineSegs, ...barSegs, ...loopSegs, ...gotoSegs]);
+
+  // connectors first (so nodes sit on top)
+  for (const s of lineSegs) drawSeg(svg, s);
 
   // divergence / convergence bars
-  for (const b of L.bars) {
-    svg.appendChild(svgEl("line", { x1: b.x1, y1: b.y, x2: b.x2, y2: b.y, class: "pfc-bar" }));
-    if (b.double)
-      svg.appendChild(svgEl("line", { x1: b.x1, y1: b.y + b.gap, x2: b.x2, y2: b.y + b.gap, class: "pfc-bar" }));
-  }
+  for (const s of barSegs) drawSeg(svg, s);
 
   // transitions
   for (const tr of L.transes) {
@@ -191,10 +260,8 @@ export function renderChart(chart: PfcChart): SVGElement {
   }
 
   // loop-back paths + arrowheads (whole-chart loop, or per-process concurrent loops)
+  for (const s of loopSegs) drawSeg(svg, s);
   for (const lp of L.loops) {
-    svg.appendChild(
-      svgEl("polyline", { points: lp.points.map((p) => p.join(",")).join(" "), class: "pfc-loop" })
-    );
     const { cx, y } = lp.arrow;
     svg.appendChild(
       svgEl("polygon", {
@@ -261,6 +328,45 @@ export function renderChart(chart: PfcChart): SVGElement {
     });
     lbl.textContent = t.label;
     svg.appendChild(lbl);
+  }
+
+  // goto back-links (conditional jump to an earlier step)
+  for (const s of gotoSegs) drawSeg(svg, s);
+  for (const g of L.gotoLinks) {
+    svg.appendChild(
+      svgEl("polygon", {
+        points: `${g.arrow.cx - 5},${g.arrow.y - 9} ${g.arrow.cx + 5},${g.arrow.y - 9} ${g.arrow.cx},${g.arrow.y}`,
+        class: "pfc-loop-arrow",
+      })
+    );
+    const lbl = svgEl("text", {
+      x: g.labelX,
+      y: g.labelY,
+      class: "pfc-goto-label",
+      "text-anchor": g.labelAnchor,
+      "font-size": 11,
+      "font-family": L.fontFamily,
+    });
+    lbl.textContent = "↑ " + g.label;
+    svg.appendChild(lbl);
+  }
+
+  // goto jump chips (label-only jump to an earlier step)
+  for (const c of L.gotoChips) {
+    svg.appendChild(
+      svgEl("rect", { x: c.x, y: c.y, width: c.w, height: c.h, rx: c.h / 2, class: "pfc-goto-chip" })
+    );
+    const t = svgEl("text", {
+      x: c.x + c.w / 2,
+      y: c.y + c.h / 2,
+      class: "pfc-goto-chip-text",
+      "text-anchor": "middle",
+      "dominant-baseline": "central",
+      "font-size": 12,
+      "font-family": L.fontFamily,
+    });
+    t.textContent = c.text;
+    svg.appendChild(t);
   }
 
   // process lane titles (concurrent)
