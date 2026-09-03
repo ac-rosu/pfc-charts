@@ -143,6 +143,15 @@ Source layout (shared core + Obsidian adapter):
 The `@pfc/core` package has no Obsidian or DOM-framework dependencies beyond a canvas for
 text measurement, which makes the planned VS Code and Fumadocs adapters straightforward.
 
+## Releasing a new version
+
+1. Bump `version` in `manifest.json` (and `minAppVersion` if it changed).
+2. Add a `"<version>": "<minAppVersion>"` entry to `versions.json`.
+3. `npm run build:obsidian` from the repo root, then publish the three files from
+   `output/obsidian/` (`main.js`, `manifest.json`, `styles.css`) — e.g. as a GitHub
+   release tagged with the exact version, or by copying them into
+   `<vault>/.obsidian/plugins/pfc-charts/`.
+
 ## License
 
 MIT

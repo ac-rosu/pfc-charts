@@ -6,7 +6,7 @@
 //
 // output/ holds only generated artifacts and is safe to delete.
 import esbuild from "esbuild";
-import { rmSync, mkdirSync, copyFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { rmSync, mkdirSync, copyFileSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import builtins from "builtin-modules";
 
@@ -196,13 +196,15 @@ async function buildFumadocs() {
     ].join("\n")
   );
 
-  // standalone, installable manifest (core is bundled; React stays a peer dep)
+  // standalone, installable manifest (core is bundled; React stays a peer dep).
+  // Version is the single source of truth in pfc-source/fumadocs/package.json.
+  const version = JSON.parse(readFileSync("pfc-source/fumadocs/package.json", "utf8")).version;
   writeFileSync(
     join(out, "package.json"),
     JSON.stringify(
       {
         name: "@pfc/fumadocs",
-        version: "1.0.0",
+        version,
         description: "Fumadocs (Next.js + MDX) adapter for PFC Charts (ISA-88).",
         license: "MIT",
         author: "ACRO",

@@ -9,22 +9,20 @@ build/request time and emits inline SVG — **no client-side JavaScript**, fully
 
 ## Install
 
-The build (`node build.mjs fumadocs`) emits a self-contained, compiled package in
-`output/fumadocs/` — `@pfc/core` is bundled in and React stays a peer dependency, so it
-installs and resolves like any normal package (no `transpilePackages`, no separate
-`@pfc/core`).
+The build emits a self-contained, compiled package in `output/fumadocs/` — `@pfc/core`
+is bundled in and React stays a peer dependency, so it installs and resolves like any
+normal package (no `transpilePackages`, no separate `@pfc/core`).
 
-From this repo, pack it:
+From this repo, build and pack in one step:
 
 ```bash
-cd output/fumadocs
-npm pack        # -> pfc-fumadocs-1.0.0.tgz
+npm run pack:fumadocs        # -> output/pfc-fumadocs-<version>.tgz
 ```
 
 Then in your docs app:
 
 ```bash
-npm install /absolute/path/to/output/fumadocs/pfc-fumadocs-1.0.0.tgz
+npm install /absolute/path/to/output/pfc-fumadocs-<version>.tgz
 ```
 
 Import the stylesheet once (e.g. in your root layout or global CSS):
@@ -94,8 +92,12 @@ The chart language is identical across all targets — see
 [../obsidian/DOCUMENTATION.md](../obsidian/DOCUMENTATION.md) and the authoring skill in
 [../../pfc-skills](../../pfc-skills).
 
-## Build
+## Build & release
 
 `node build.mjs fumadocs` bundles this adapter to compiled ESM in `output/fumadocs/`
 (`@pfc/core` inlined, React external) with type declarations and an installable
 `package.json`. `npm run build:fumadocs` type-checks (its own `tsconfig.json`) first.
+
+To cut a new version: bump `version` in this folder's `package.json` (the build reads it
+into the packaged manifest), then run `npm run pack:fumadocs` from the repo root to
+produce `output/pfc-fumadocs-<version>.tgz`, and reinstall it in your docs app.
