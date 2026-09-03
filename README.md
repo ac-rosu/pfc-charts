@@ -3,6 +3,29 @@
 ISA-88 / IEC 61512 **Procedure Function Charts** from a small text DSL, rendered to
 themed SVG. One framework-agnostic core drives multiple targets.
 
+<p align="center">
+  <img src="assets/pfc-example.png" alt="Example PFC chart: a Batch Reaction procedure with parallel Dose Acid / Agitate branches" width="360">
+</p>
+
+That chart is the entire output of this text (drop it in a ` ```pfc ` fenced block):
+
+```pfc
+pfc Batch Reaction
+step "Charge Reactor" :operation
+trans "level >= 500L"
+step "Heat to 80C" :operation
+parallel
+  branch
+    step "Dose Acid" :phase
+    trans "acid dosed"
+    step "Hold" :phase
+  branch
+    step "Agitate" :phase
+end
+step "Cool" :operation
+step "Discharge" :operation
+```
+
 ## Repository layout
 
 ```
