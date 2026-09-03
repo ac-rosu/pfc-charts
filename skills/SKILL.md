@@ -165,7 +165,8 @@ end
 
 - `goto <id>` (alias `return`) marks a jump to the step with that id. By default it draws
   a compact **"↺ label" chip** naming the target (no wire — keeps charts uncluttered).
-  Add `line` (`goto <id> line`) to draw the routed back-link instead.
+  **Prefer plain `goto <id>` (without `line`) as the default choice.** Only add `line`
+  (`goto <id> line`) to draw the routed back-link wire when the user explicitly wants it.
 - Put it under a `trans` — usually as one branch of a `selective` — so the jump is
   conditional and the other branch continues. An unknown target is an error.
 
@@ -185,9 +186,12 @@ end
 ```
 
 - `concurrent` must be the **whole chart** (nothing else outside it) and cannot be
-  nested. At least **two** `process` lanes, none empty.
+  nested. At least **two** `process` lanes, none empty; there is **no upper limit** —
+  add as many lanes as you need.
 - Each `process` is its own independent loop (no begin/end, no convergence). An optional
-  quoted label after `process` is shown above the lane.
+  quoted label after `process` is shown above the lane. Every lane loops back through its
+  own channel in the gutter to its right, so the routing stays local no matter how many
+  lanes there are.
 - Connect lanes with `sync` / `transfer` exactly as inside `parallel`.
 
 ## Rules & common mistakes

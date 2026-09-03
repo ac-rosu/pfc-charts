@@ -190,6 +190,30 @@ The `R` sync is the rendezvous: the main lane, after Operation 4, meets the outf
 at its wait point. If Operation 5 hasn't finished (the lane hasn't returned to *Wait*),
 the main lane holds at `R`. Each lane loops independently.
 
+Concurrent scales to any number of lanes — each loops back in its own right-hand gutter,
+so lanes never overlap. A three-lane cell with a chain of rendezvous points:
+
+```
+pfc Three-Lane Cell
+concurrent
+  process "Infeed"
+    step "Load" :operation
+    sync A
+  process "Weld"
+    step "Receive" :operation
+    sync A
+    step "Weld" :operation
+    sync B
+  process "Outfeed"
+    step "Wait" :operation
+    sync B
+    step "Unload" :operation
+end
+```
+
+Each id (`A`, `B`) pairs exactly two tabs across adjacent lanes; the connectors hop over
+the intervening loop channels.
+
 ## 10. Notes and process titles
 
 ```
@@ -225,7 +249,10 @@ end
 step "Discharge" :phase
 ```
 
-The `temp < 80C` branch returns to `HEAT`; the `temp >= 80C` branch continues.
+The `temp < 80C` branch returns to `HEAT`; the `temp >= 80C` branch continues. By default
+`goto` draws a compact **"↺ label" chip** (no wire) — this plain form is the preferred
+default. Only add `line` — `goto HEAT line` — to draw the routed back-link wire when it's
+explicitly wanted for a tight in-lane retry.
 
 ## 12. All-features example
 
