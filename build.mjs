@@ -98,30 +98,20 @@ async function buildVscode() {
 
   // self-contained extension folder, ready for `vsce package`
   copyFileSync("pfc-source/vscode/package.json", join(out, "package.json"));
-  copyFileSync("pfc-source/vscode/media/pfc-preview.css", join(out, "media/pfc-preview.css"));
-  // a standalone README (the source one has repo-relative links vsce can't resolve)
-  writeFileSync(
-    join(out, "README.md"),
-    [
-      "# PFC Charts (ISA-88)",
-      "",
-      "Render ISA-88 Procedure Function Charts from `pfc` fenced code blocks in the",
-      "built-in Markdown preview.",
-      "",
-      "````markdown",
-      "```pfc",
-      "pfc Simple Batch",
-      'step "Charge Reactor" :operation',
-      'trans "level >= 500L"',
-      'step "Heat" :operation',
-      "```",
-      "````",
-      "",
-      "Open a Markdown file and run **Markdown: Open Preview** (`Ctrl/Cmd+Shift+V`).",
-      "`pfc` blocks render as inline SVG that follows the active color theme.",
-      "",
-    ].join("\n")
-  );
+
+  // media assets (icon + preview stylesheet); .svg is the icon's source, not shipped
+  for (const f of readdirSync("pfc-source/vscode/media")) {
+    if (f.endsWith(".svg")) continue;
+    copyFileSync(join("pfc-source/vscode/media", f), join(out, "media", f));
+  }
+
+  // README.package.md is the Marketplace-facing README (self-contained; the source
+  // README.md has repo-relative links vsce can't resolve). LICENSE + CHANGELOG ship too.
+  copyFileSync("pfc-source/vscode/README.package.md", join(out, "README.md"));
+  for (const f of ["LICENSE", "CHANGELOG.md"]) {
+    const s = join("pfc-source/vscode", f);
+    if (existsSync(s)) copyFileSync(s, join(out, f));
+  }
   // launch config so pressing F5 in this folder starts an Extension Development Host
   mkdirSync(join(out, ".vscode"), { recursive: true });
   writeFileSync(
@@ -142,6 +132,8 @@ async function buildVscode() {
       2
     )
   );
+  // keep dev-only files out of the packaged VSIX (also silences vsce's warning)
+  writeFileSync(join(out, ".vscodeignore"), [".vscode/**", "**/*.map", ""].join("\n"));
   console.log("vscode: built -> output/vscode");
 }
 

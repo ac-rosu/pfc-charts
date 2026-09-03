@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4338ca"/>
+      <stop offset="1" stop-color="#6d28d9"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+
+  <!-- begin terminal (points down) -->
+  <polygon points="116,34 140,34 128,50" fill="#ffffff"/>
+  <line x1="128" y1="50" x2="128" y2="70" stroke="#ffffff" stroke-width="5"/>
+
+  <!-- step A (operation: two corner marks) -->
+  <rect x="72" y="70" width="112" height="52" rx="3" fill="#ffffff"/>
+  <line x1="72" y1="86" x2="88" y2="70" stroke="#6d28d9" stroke-width="5"/>
+  <line x1="168" y1="70" x2="184" y2="86" stroke="#6d28d9" stroke-width="5"/>
+
+  <!-- connector A -> B with an explicit transition tick -->
+  <line x1="128" y1="122" x2="128" y2="162" stroke="#ffffff" stroke-width="5"/>
+  <line x1="110" y1="137" x2="146" y2="137" stroke="#ffffff" stroke-width="5"/>
+  <line x1="110" y1="147" x2="146" y2="147" stroke="#ffffff" stroke-width="5"/>
+
+  <!-- step B (phase: one corner mark) -->
+  <rect x="72" y="162" width="112" height="52" rx="3" fill="#ffffff"/>
+  <line x1="72" y1="178" x2="88" y2="162" stroke="#6d28d9" stroke-width="5"/>
+</svg>

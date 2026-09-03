@@ -6,6 +6,12 @@
   "publisher": "acro",
   "license": "MIT",
   "author": "ACRO",
+  "icon": "media/icon.png",
+  "pricing": "Free",
+  "galleryBanner": {
+    "color": "#4338ca",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.75.0"
   },
