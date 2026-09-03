@@ -88,6 +88,23 @@
   fill: var(--text-normal);
   font-weight: 500;
 }
+.pfc-proc-title {
+  fill: var(--text-normal);
+  font-weight: 700;
+}
+.pfc-note {
+  fill: var(--background-secondary);
+  stroke: var(--text-muted);
+  stroke-width: 1;
+}
+.pfc-note-link {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+.pfc-note-text {
+  fill: var(--text-muted);
+}
 
 /* text */
 .pfc-step-label {

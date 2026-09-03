@@ -154,7 +154,8 @@ function parsePfc(source) {
           level,
           initial,
           encapsulates,
-          markers: []
+          markers: [],
+          note: ""
         });
         i++;
       } else if (kw === "trans" || kw === "transition") {
@@ -167,7 +168,17 @@ function parsePfc(source) {
         const label = rest.startsWith('"') ? splitIdLabel(rest).label : rest;
         if (!label.trim())
           throw new ParseError("alloc needs a label", n);
-        seq.push({ kind: "alloc", label, markers: [] });
+        seq.push({ kind: "alloc", label, markers: [], note: "" });
+        i++;
+      } else if (kw === "note") {
+        const last = seq[seq.length - 1];
+        if (!last || last.kind !== "step" && last.kind !== "alloc")
+          throw new ParseError("'note' must come right after a step or allocation", n);
+        const rest = text.slice(4).trim();
+        const noteText = rest.startsWith('"') ? splitIdLabel(rest).label : rest;
+        if (!noteText.trim())
+          throw new ParseError("note needs text", n);
+        last.note = noteText;
         i++;
       } else if (kw === "sync" || kw === "transfer") {
         const last = seq[seq.length - 1];
@@ -189,6 +200,25 @@ function parsePfc(source) {
           last.markers.push({ id, transfer: true, dir });
         }
         i++;
+      } else if (kw === "concurrent") {
+        if (depth !== 0)
+          throw new ParseError("'concurrent' must be at the top level", n);
+        i++;
+        const processes = [];
+        while (i < lines.length && firstWord(lines[i].text) === "process") {
+          const rest = lines[i].text.slice(7).trim();
+          const label = rest.startsWith('"') ? splitIdLabel(rest).label : rest;
+          i++;
+          processes.push({ label, body: parseSequence(["process", "end"], depth + 1) });
+        }
+        if (i >= lines.length || firstWord(lines[i].text) !== "end")
+          throw new ParseError("missing 'end' to close 'concurrent'", n);
+        i++;
+        if (processes.length < 2)
+          throw new ParseError("'concurrent' needs at least two 'process' blocks", n);
+        if (processes.some((p) => p.body.length === 0))
+          throw new ParseError("'concurrent' has an empty process", n);
+        seq.push({ kind: "concurrent", processes });
       } else if (kw === "parallel" || kw === "selective") {
         const kind = kw;
         i++;
@@ -216,6 +246,8 @@ function parsePfc(source) {
     throw new ParseError(`unexpected '${lines[i].text}'`, lines[i].n);
   if (body.length === 0)
     throw new ParseError("chart is empty", 0);
+  if (body.some((nd) => nd.kind === "concurrent") && body.length > 1)
+    throw new ParseError("'concurrent' must be the only thing in the chart", 0);
   return { title, terminals, loop, body };
 }
 
@@ -241,6 +273,15 @@ var TERM_H = 15;
 var TERM_GAP = 18;
 var LOOP_GAP = 26;
 var LOOP_STUB = 20;
+var PROCESS_GAP = 46;
+var PROC_TITLE_H = 24;
+var PROC_TITLE_FONT = 13;
+var NOTE_W = 150;
+var NOTE_FONT = 11;
+var NOTE_PAD = 8;
+var NOTE_LINE_H = 15;
+var NOTE_GAP = 22;
+var NOTE_RESERVE = NOTE_W + NOTE_GAP + 6;
 var SYNC_W = 26;
 var SYNC_H = 16;
 var SYNC_RESERVE = 30;
@@ -262,6 +303,38 @@ function textWidth(text, px) {
 }
 var mmap = /* @__PURE__ */ new WeakMap();
 var smap = /* @__PURE__ */ new WeakMap();
+function wrapText(text, px, maxW) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = "";
+  for (const word of words) {
+    const trial = cur ? cur + " " + word : word;
+    if (textWidth(trial, px) <= maxW || !cur)
+      cur = trial;
+    else {
+      lines.push(cur);
+      cur = word;
+    }
+  }
+  if (cur)
+    lines.push(cur);
+  return lines.length ? lines : [text];
+}
+function emitNote(out, note, sx, sy, sw, sh) {
+  const lines = wrapText(note, NOTE_FONT, NOTE_W - 2 * NOTE_PAD);
+  const h = lines.length * NOTE_LINE_H + 2 * NOTE_PAD;
+  const x = sx + sw + NOTE_GAP;
+  const y = sy + sh / 2 - h / 2;
+  out.notes.push({
+    x,
+    y,
+    w: NOTE_W,
+    h,
+    lines,
+    lineH: NOTE_LINE_H,
+    link: [sx + sw, sy + sh / 2, x, sy + sh / 2]
+  });
+}
 function measureNode(node) {
   const cached = mmap.get(node);
   if (cached)
@@ -270,7 +343,8 @@ function measureNode(node) {
   if (node.kind === "step") {
     const w = Math.max(STEP_MIN_W, textWidth(node.label, STEP_FONT) + 2 * STEP_PAD_X);
     const reserve = node.markers.length ? SYNC_RESERVE : 0;
-    m = { leftExt: w / 2 + reserve, rightExt: w / 2 + reserve, h: STEP_H, w };
+    const noteR = node.note ? NOTE_RESERVE : 0;
+    m = { leftExt: w / 2 + reserve, rightExt: w / 2 + reserve + noteR, h: STEP_H, w };
   } else if (node.kind === "trans") {
     const cw = textWidth(node.condition, TRANS_FONT);
     m = {
@@ -281,8 +355,9 @@ function measureNode(node) {
   } else if (node.kind === "alloc") {
     const w = Math.max(ALLOC_MIN_W, textWidth(node.label, STEP_FONT) + 2 * ALLOC_PAD_X);
     const reserve = node.markers.length ? SYNC_RESERVE : 0;
-    m = { leftExt: w / 2 + reserve, rightExt: w / 2 + reserve, h: ALLOC_H, w };
-  } else {
+    const noteR = node.note ? NOTE_RESERVE : 0;
+    m = { leftExt: w / 2 + reserve, rightExt: w / 2 + reserve + noteR, h: ALLOC_H, w };
+  } else if (node.kind === "parallel" || node.kind === "selective") {
     const bms = node.branches.map(measureSeq);
     let x = 0;
     const spines = [];
@@ -305,6 +380,8 @@ function measureNode(node) {
     node._bms = bms;
     node._spine = spine;
     node._maxH = maxH;
+  } else {
+    m = { leftExt: 0, rightExt: 0, h: 0 };
   }
   mmap.set(node, m);
   return m;
@@ -329,7 +406,6 @@ function measureSeq(seq) {
   return m;
 }
 function layoutChart(chart) {
-  var _a, _b, _c;
   const out = {
     width: 0,
     height: 0,
@@ -342,8 +418,9 @@ function layoutChart(chart) {
     lines: [],
     beginTri: null,
     endTri: null,
-    loopPath: null,
-    loopArrow: null,
+    loops: [],
+    processTitles: [],
+    notes: [],
     syncTabs: [],
     syncLines: [],
     stepFont: STEP_FONT,
@@ -351,10 +428,14 @@ function layoutChart(chart) {
     titleFont: TITLE_FONT,
     fontFamily: FONT
   };
+  out.titleY = MARGIN + TITLE_FONT;
+  if (chart.body.length === 1 && chart.body[0].kind === "concurrent") {
+    layoutConcurrent(chart.body[0], out);
+    return out;
+  }
   const bodyM = measureSeq(chart.body);
   const half = Math.max(bodyM.leftExt, bodyM.rightExt);
   const rootSpine = MARGIN + half;
-  out.titleY = MARGIN + TITLE_FONT;
   const showTerminals = chart.terminals && !chart.loop;
   const headerY = MARGIN + (chart.title ? TITLE_H : 0);
   let y = headerY + (chart.loop ? LOOP_STUB : 0);
@@ -366,6 +447,68 @@ function layoutChart(chart) {
   }
   const firstY = y;
   let bottom = placeSeq(chart.body, rootSpine, firstY, out);
+  pairSyncMarkers(out);
+  if (showTerminals) {
+    out.lines.push({ x1: rootSpine, y1: bottom, x2: rootSpine, y2: bottom + TERM_GAP });
+    bottom += TERM_GAP;
+    out.endTri = { cx: rootSpine, top: bottom, w: TERM_W, h: TERM_H };
+    bottom += TERM_H;
+  }
+  out.width = 2 * half + 2 * MARGIN;
+  if (chart.loop) {
+    const channelX = MARGIN + 2 * half + LOOP_GAP;
+    out.loops.push(makeLoop(rootSpine, firstY, bottom, channelX));
+    out.width = channelX + MARGIN;
+    bottom += LOOP_STUB;
+  }
+  out.height = bottom + MARGIN;
+  return out;
+}
+function makeLoop(spineX, firstY, bottom, channelX) {
+  const botY = bottom + LOOP_STUB;
+  const topY = firstY - LOOP_STUB;
+  return {
+    points: [
+      [spineX, bottom],
+      [spineX, botY],
+      [channelX, botY],
+      [channelX, topY],
+      [spineX, topY],
+      [spineX, firstY]
+    ],
+    arrow: { cx: spineX, y: firstY }
+  };
+}
+function layoutConcurrent(node, out) {
+  const processes = node.processes;
+  const pms = processes.map((p) => measureSeq(p.body));
+  const hasTitles = processes.some((p) => p.label);
+  const headerY = MARGIN + (out.title ? TITLE_H : 0);
+  const titleBandY = headerY;
+  const topY = headerY + (hasTitles ? PROC_TITLE_H : 0) + LOOP_STUB;
+  const leftChannelX = MARGIN + 8;
+  let x = MARGIN + LOOP_GAP;
+  const spines = [];
+  pms.forEach((pm) => {
+    spines.push(x + pm.leftExt);
+    x += pm.leftExt + pm.rightExt + PROCESS_GAP;
+  });
+  const rightEdge = x - PROCESS_GAP;
+  const bottoms = processes.map((proc, i) => {
+    if (proc.label)
+      out.processTitles.push({ cx: spines[i], y: titleBandY + PROC_TITLE_FONT, label: proc.label });
+    return placeSeq(proc.body, spines[i], topY, out);
+  });
+  pairSyncMarkers(out);
+  processes.forEach((_proc, i) => {
+    const channelX = i === 0 ? leftChannelX : rightEdge + LOOP_GAP * i;
+    out.loops.push(makeLoop(spines[i], topY, bottoms[i], channelX));
+  });
+  out.width = rightEdge + LOOP_GAP * (processes.length - 1) + MARGIN;
+  out.height = Math.max(...bottoms) + LOOP_STUB + MARGIN;
+}
+function pairSyncMarkers(out) {
+  var _a, _b, _c;
   const marks = (_a = out._markers) != null ? _a : [];
   const byId = /* @__PURE__ */ new Map();
   for (const mk of marks) {
@@ -402,31 +545,6 @@ function layoutChart(chart) {
     const points = y1 === y2 ? [[aFace, y1], [bFace, y2]] : [[aFace, y1], [midX, y1], [midX, y2], [bFace, y2]];
     out.syncLines.push({ points, transfer });
   }
-  if (showTerminals) {
-    out.lines.push({ x1: rootSpine, y1: bottom, x2: rootSpine, y2: bottom + TERM_GAP });
-    bottom += TERM_GAP;
-    out.endTri = { cx: rootSpine, top: bottom, w: TERM_W, h: TERM_H };
-    bottom += TERM_H;
-  }
-  out.width = 2 * half + 2 * MARGIN;
-  if (chart.loop) {
-    const channelX = MARGIN + 2 * half + LOOP_GAP;
-    const botY = bottom + LOOP_STUB;
-    const topY = firstY - LOOP_STUB;
-    out.loopPath = [
-      [rootSpine, bottom],
-      [rootSpine, botY],
-      [channelX, botY],
-      [channelX, topY],
-      [rootSpine, topY],
-      [rootSpine, firstY]
-    ];
-    out.loopArrow = { cx: rootSpine, y: firstY };
-    out.width = channelX + MARGIN;
-    bottom = botY;
-  }
-  out.height = bottom + MARGIN;
-  return out;
 }
 function placeSeq(seq, spineX, startY, out) {
   let cy = startY;
@@ -458,6 +576,8 @@ function placeNode(node, spineX, cy, out) {
       for (const mk of node.markers)
         store.push({ ...mk, sx: spineX - m.w / 2, sy: cy, sw: m.w, sh: STEP_H });
     }
+    if (node.note)
+      emitNote(out, node.note, spineX - m.w / 2, cy, m.w, STEP_H);
     return cy + STEP_H;
   }
   if (node.kind === "trans") {
@@ -472,8 +592,12 @@ function placeNode(node, spineX, cy, out) {
       for (const mk of node.markers)
         store.push({ ...mk, sx: spineX - m.w / 2, sy: cy, sw: m.w, sh: ALLOC_H });
     }
+    if (node.note)
+      emitNote(out, node.note, spineX - m.w / 2, cy, m.w, ALLOC_H);
     return cy + ALLOC_H;
   }
+  if (node.kind !== "parallel" && node.kind !== "selective")
+    return cy;
   const spines = node._spines;
   const blockLeft = spineX - m.leftExt;
   const absSpines = spines.map((s) => blockLeft + s);
@@ -553,6 +677,25 @@ function renderChart(chart) {
     });
     t.textContent = L.title;
     svg.appendChild(t);
+  }
+  for (const nt of L.notes) {
+    svg.appendChild(
+      svgEl("line", { x1: nt.link[0], y1: nt.link[1], x2: nt.link[2], y2: nt.link[3], class: "pfc-note-link" })
+    );
+    svg.appendChild(svgEl("rect", { x: nt.x, y: nt.y, width: nt.w, height: nt.h, rx: 3, class: "pfc-note" }));
+    nt.lines.forEach((line, k) => {
+      const t = svgEl("text", {
+        x: nt.x + 8,
+        y: nt.y + 8 + nt.lineH / 2 + k * nt.lineH,
+        class: "pfc-note-text",
+        "text-anchor": "start",
+        "dominant-baseline": "central",
+        "font-size": 11,
+        "font-family": L.fontFamily
+      });
+      t.textContent = line;
+      svg.appendChild(t);
+    });
   }
   for (const ln of L.lines) {
     svg.appendChild(svgEl("line", { x1: ln.x1, y1: ln.y1, x2: ln.x2, y2: ln.y2, class: "pfc-line" }));
@@ -642,13 +785,11 @@ function renderChart(chart) {
       })
     );
   }
-  if (L.loopPath) {
+  for (const lp of L.loops) {
     svg.appendChild(
-      svgEl("polyline", { points: L.loopPath.map((p) => p.join(",")).join(" "), class: "pfc-loop" })
+      svgEl("polyline", { points: lp.points.map((p) => p.join(",")).join(" "), class: "pfc-loop" })
     );
-  }
-  if (L.loopArrow) {
-    const { cx, y } = L.loopArrow;
+    const { cx, y } = lp.arrow;
     svg.appendChild(
       svgEl("polygon", {
         points: `${cx - 5},${y - 9} ${cx + 5},${y - 9} ${cx},${y}`,
@@ -710,6 +851,18 @@ function renderChart(chart) {
     });
     lbl.textContent = t.label;
     svg.appendChild(lbl);
+  }
+  for (const pt of L.processTitles) {
+    const t = svgEl("text", {
+      x: pt.cx,
+      y: pt.y,
+      class: "pfc-proc-title",
+      "text-anchor": "middle",
+      "font-size": 13,
+      "font-family": L.fontFamily
+    });
+    t.textContent = pt.label;
+    svg.appendChild(t);
   }
   return svg;
 }

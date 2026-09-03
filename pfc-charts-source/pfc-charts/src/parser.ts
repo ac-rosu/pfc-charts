@@ -31,6 +31,7 @@ export interface StepNode {
   initial: boolean;
   encapsulates: boolean;
   markers: SyncMarker[];
+  note: string;
 }
 export interface TransNode {
   kind: "trans";
@@ -40,12 +41,17 @@ export interface AllocNode {
   kind: "alloc";
   label: string;
   markers: SyncMarker[];
+  note: string;
 }
 export interface BranchBlock {
   kind: "parallel" | "selective";
   branches: PfcNode[][];
 }
-export type PfcNode = StepNode | TransNode | AllocNode | BranchBlock;
+export interface ConcurrentBlock {
+  kind: "concurrent";
+  processes: Array<{ label: string; body: PfcNode[] }>;
+}
+export type PfcNode = StepNode | TransNode | AllocNode | BranchBlock | ConcurrentBlock;
 
 export interface PfcChart {
   title: string;
@@ -191,6 +197,7 @@ export function parsePfc(source: string): PfcChart {
           initial,
           encapsulates,
           markers: [],
+          note: "",
         });
         i++;
       } else if (kw === "trans" || kw === "transition") {
@@ -204,7 +211,16 @@ export function parsePfc(source: string): PfcChart {
         const rest = text.slice(kw.length).trim();
         const label = rest.startsWith('"') ? splitIdLabel(rest).label : rest;
         if (!label.trim()) throw new ParseError("alloc needs a label", n);
-        seq.push({ kind: "alloc", label, markers: [] });
+        seq.push({ kind: "alloc", label, markers: [], note: "" });
+        i++;
+      } else if (kw === "note") {
+        const last = seq[seq.length - 1];
+        if (!last || (last.kind !== "step" && last.kind !== "alloc"))
+          throw new ParseError("'note' must come right after a step or allocation", n);
+        const rest = text.slice(4).trim();
+        const noteText = rest.startsWith('"') ? splitIdLabel(rest).label : rest;
+        if (!noteText.trim()) throw new ParseError("note needs text", n);
+        last.note = noteText;
         i++;
       } else if (kw === "sync" || kw === "transfer") {
         const last = seq[seq.length - 1];
@@ -224,6 +240,25 @@ export function parsePfc(source: string): PfcChart {
           last.markers.push({ id, transfer: true, dir });
         }
         i++;
+      } else if (kw === "concurrent") {
+        if (depth !== 0)
+          throw new ParseError("'concurrent' must be at the top level", n);
+        i++; // consume opener
+        const processes: Array<{ label: string; body: PfcNode[] }> = [];
+        while (i < lines.length && firstWord(lines[i].text) === "process") {
+          const rest = lines[i].text.slice(7).trim();
+          const label = rest.startsWith('"') ? splitIdLabel(rest).label : rest;
+          i++; // consume 'process'
+          processes.push({ label, body: parseSequence(["process", "end"], depth + 1) });
+        }
+        if (i >= lines.length || firstWord(lines[i].text) !== "end")
+          throw new ParseError("missing 'end' to close 'concurrent'", n);
+        i++; // consume 'end'
+        if (processes.length < 2)
+          throw new ParseError("'concurrent' needs at least two 'process' blocks", n);
+        if (processes.some((p) => p.body.length === 0))
+          throw new ParseError("'concurrent' has an empty process", n);
+        seq.push({ kind: "concurrent", processes });
       } else if (kw === "parallel" || kw === "selective") {
         const kind = kw as "parallel" | "selective";
         i++; // consume opener
@@ -251,5 +286,7 @@ export function parsePfc(source: string): PfcChart {
   if (i < lines.length)
     throw new ParseError(`unexpected '${lines[i].text}'`, lines[i].n);
   if (body.length === 0) throw new ParseError("chart is empty", 0);
+  if (body.some((nd) => nd.kind === "concurrent") && body.length > 1)
+    throw new ParseError("'concurrent' must be the only thing in the chart", 0);
   return { title, terminals, loop, body };
 }

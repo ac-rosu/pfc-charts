@@ -66,6 +66,27 @@ export function renderChart(chart: PfcChart): SVGElement {
     svg.appendChild(t);
   }
 
+  // note callouts — drawn first so connectors (esp. dashed sync lines) stay on top
+  for (const nt of L.notes) {
+    svg.appendChild(
+      svgEl("line", { x1: nt.link[0], y1: nt.link[1], x2: nt.link[2], y2: nt.link[3], class: "pfc-note-link" })
+    );
+    svg.appendChild(svgEl("rect", { x: nt.x, y: nt.y, width: nt.w, height: nt.h, rx: 3, class: "pfc-note" }));
+    nt.lines.forEach((line, k) => {
+      const t = svgEl("text", {
+        x: nt.x + 8,
+        y: nt.y + 8 + nt.lineH / 2 + k * nt.lineH,
+        class: "pfc-note-text",
+        "text-anchor": "start",
+        "dominant-baseline": "central",
+        "font-size": 11,
+        "font-family": L.fontFamily,
+      });
+      t.textContent = line;
+      svg.appendChild(t);
+    });
+  }
+
   // connectors first (so nodes sit on top)
   for (const ln of L.lines) {
     svg.appendChild(svgEl("line", { x1: ln.x1, y1: ln.y1, x2: ln.x2, y2: ln.y2, class: "pfc-line" }));
@@ -169,14 +190,12 @@ export function renderChart(chart: PfcChart): SVGElement {
     );
   }
 
-  // loop-back path + arrowhead re-entering the first element
-  if (L.loopPath) {
+  // loop-back paths + arrowheads (whole-chart loop, or per-process concurrent loops)
+  for (const lp of L.loops) {
     svg.appendChild(
-      svgEl("polyline", { points: L.loopPath.map((p) => p.join(",")).join(" "), class: "pfc-loop" })
+      svgEl("polyline", { points: lp.points.map((p) => p.join(",")).join(" "), class: "pfc-loop" })
     );
-  }
-  if (L.loopArrow) {
-    const { cx, y } = L.loopArrow;
+    const { cx, y } = lp.arrow;
     svg.appendChild(
       svgEl("polygon", {
         points: `${cx - 5},${y - 9} ${cx + 5},${y - 9} ${cx},${y}`,
@@ -242,6 +261,20 @@ export function renderChart(chart: PfcChart): SVGElement {
     });
     lbl.textContent = t.label;
     svg.appendChild(lbl);
+  }
+
+  // process lane titles (concurrent)
+  for (const pt of L.processTitles) {
+    const t = svgEl("text", {
+      x: pt.cx,
+      y: pt.y,
+      class: "pfc-proc-title",
+      "text-anchor": "middle",
+      "font-size": 13,
+      "font-family": L.fontFamily,
+    });
+    t.textContent = pt.label;
+    svg.appendChild(t);
   }
 
   return svg;

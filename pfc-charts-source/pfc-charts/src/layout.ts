@@ -31,6 +31,16 @@ const TERM_GAP = 18; // stub between a terminal and the first/last element
 
 const LOOP_GAP = 26; // horizontal offset of the loop-back channel from content
 const LOOP_STUB = 20; // vertical clearance above/below the chart for the loop
+const PROCESS_GAP = 46; // gap between concurrent process columns
+const PROC_TITLE_H = 24; // space above a process lane for its label
+const PROC_TITLE_FONT = 13;
+
+const NOTE_W = 150; // note callout box width
+const NOTE_FONT = 11;
+const NOTE_PAD = 8;
+const NOTE_LINE_H = 15;
+const NOTE_GAP = 22; // gap between element edge and note box
+const NOTE_RESERVE = NOTE_W + NOTE_GAP + 6;
 
 const SYNC_W = 26; // tab width (holds the id label)
 const SYNC_H = 16; // tab height
@@ -89,8 +99,17 @@ export interface Layout {
   lines: RLine[];
   beginTri: { cx: number; top: number; w: number; h: number } | null;
   endTri: { cx: number; top: number; w: number; h: number } | null;
-  loopPath: Array<[number, number]> | null;
-  loopArrow: { cx: number; y: number } | null;
+  loops: Array<{ points: Array<[number, number]>; arrow: { cx: number; y: number } }>;
+  processTitles: Array<{ cx: number; y: number; label: string }>;
+  notes: Array<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    lines: string[];
+    lineH: number;
+    link: [number, number, number, number];
+  }>;
   syncTabs: Array<{ x: number; y: number; w: number; h: number; label: string }>;
   syncLines: Array<{ points: Array<[number, number]>; transfer: boolean }>;
   stepFont: number;
@@ -122,6 +141,40 @@ function textWidth(text: string, px: number): number {
 const mmap = new WeakMap<object, Measure>();
 const smap = new WeakMap<object, Measure>(); // measure for a sequence (array)
 
+// wrap text to fit a pixel width
+function wrapText(text: string, px: number, maxW: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = "";
+  for (const word of words) {
+    const trial = cur ? cur + " " + word : word;
+    if (textWidth(trial, px) <= maxW || !cur) cur = trial;
+    else {
+      lines.push(cur);
+      cur = word;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines.length ? lines : [text];
+}
+
+// attach a note callout to the right edge of an element box (sx,sy,sw,sh)
+function emitNote(out: Layout, note: string, sx: number, sy: number, sw: number, sh: number): void {
+  const lines = wrapText(note, NOTE_FONT, NOTE_W - 2 * NOTE_PAD);
+  const h = lines.length * NOTE_LINE_H + 2 * NOTE_PAD;
+  const x = sx + sw + NOTE_GAP;
+  const y = sy + sh / 2 - h / 2;
+  out.notes.push({
+    x,
+    y,
+    w: NOTE_W,
+    h,
+    lines,
+    lineH: NOTE_LINE_H,
+    link: [sx + sw, sy + sh / 2, x, sy + sh / 2],
+  });
+}
+
 function measureNode(node: PfcNode): Measure {
   const cached = mmap.get(node);
   if (cached) return cached;
@@ -129,7 +182,8 @@ function measureNode(node: PfcNode): Measure {
   if (node.kind === "step") {
     const w = Math.max(STEP_MIN_W, textWidth(node.label, STEP_FONT) + 2 * STEP_PAD_X);
     const reserve = node.markers.length ? SYNC_RESERVE : 0;
-    m = { leftExt: w / 2 + reserve, rightExt: w / 2 + reserve, h: STEP_H, w };
+    const noteR = node.note ? NOTE_RESERVE : 0;
+    m = { leftExt: w / 2 + reserve, rightExt: w / 2 + reserve + noteR, h: STEP_H, w };
   } else if (node.kind === "trans") {
     const cw = textWidth(node.condition, TRANS_FONT);
     m = {
@@ -140,8 +194,9 @@ function measureNode(node: PfcNode): Measure {
   } else if (node.kind === "alloc") {
     const w = Math.max(ALLOC_MIN_W, textWidth(node.label, STEP_FONT) + 2 * ALLOC_PAD_X);
     const reserve = node.markers.length ? SYNC_RESERVE : 0;
-    m = { leftExt: w / 2 + reserve, rightExt: w / 2 + reserve, h: ALLOC_H, w };
-  } else {
+    const noteR = node.note ? NOTE_RESERVE : 0;
+    m = { leftExt: w / 2 + reserve, rightExt: w / 2 + reserve + noteR, h: ALLOC_H, w };
+  } else if (node.kind === "parallel" || node.kind === "selective") {
     const bms = node.branches.map(measureSeq);
     let x = 0;
     const spines: number[] = [];
@@ -164,6 +219,8 @@ function measureNode(node: PfcNode): Measure {
     (node as any)._bms = bms;
     (node as any)._spine = spine;
     (node as any)._maxH = maxH;
+  } else {
+    m = { leftExt: 0, rightExt: 0, h: 0 }; // concurrent handled at chart level
   }
   mmap.set(node, m);
   return m;
@@ -200,8 +257,9 @@ export function layoutChart(chart: PfcChart): Layout {
     lines: [],
     beginTri: null,
     endTri: null,
-    loopPath: null,
-    loopArrow: null,
+    loops: [],
+    processTitles: [],
+    notes: [],
     syncTabs: [],
     syncLines: [],
     stepFont: STEP_FONT,
@@ -210,12 +268,18 @@ export function layoutChart(chart: PfcChart): Layout {
     fontFamily: FONT,
   };
 
+  out.titleY = MARGIN + TITLE_FONT;
+
+  if (chart.body.length === 1 && chart.body[0].kind === "concurrent") {
+    layoutConcurrent(chart.body[0] as any, out);
+    return out;
+  }
+
   const bodyM = measureSeq(chart.body);
   // Put the spine on the SVG centerline so the trunk is centered, giving both
   // sides equal room (right side carries the transition condition labels).
   const half = Math.max(bodyM.leftExt, bodyM.rightExt);
   const rootSpine = MARGIN + half;
-  out.titleY = MARGIN + TITLE_FONT;
 
   // A looping chart is a cycle: no begin/end placeholders, and it needs vertical
   // clearance above the first element and below the last for the return channel.
@@ -234,7 +298,92 @@ export function layoutChart(chart: PfcChart): Layout {
   const firstY = y;
   let bottom = placeSeq(chart.body, rootSpine, firstY, out);
 
-  // pair up synchronization / transfer markers by id → side tabs + dashed connectors
+  pairSyncMarkers(out);
+
+  // end terminal (single upward triangle) — all paths have converged by here
+  if (showTerminals) {
+    out.lines.push({ x1: rootSpine, y1: bottom, x2: rootSpine, y2: bottom + TERM_GAP });
+    bottom += TERM_GAP;
+    out.endTri = { cx: rootSpine, top: bottom, w: TERM_W, h: TERM_H };
+    bottom += TERM_H;
+  }
+
+  out.width = 2 * half + 2 * MARGIN;
+
+  // loop-back: exit the last element, route up the right channel, re-enter the top
+  if (chart.loop) {
+    const channelX = MARGIN + 2 * half + LOOP_GAP;
+    out.loops.push(makeLoop(rootSpine, firstY, bottom, channelX));
+    out.width = channelX + MARGIN;
+    bottom += LOOP_STUB;
+  }
+
+  out.height = bottom + MARGIN;
+  return out;
+}
+
+// A rectangular loop-back route from an element bottom, out to a side channel,
+// and back to the top of the first element (channelX may be left or right).
+function makeLoop(
+  spineX: number,
+  firstY: number,
+  bottom: number,
+  channelX: number
+): { points: Array<[number, number]>; arrow: { cx: number; y: number } } {
+  const botY = bottom + LOOP_STUB;
+  const topY = firstY - LOOP_STUB;
+  return {
+    points: [
+      [spineX, bottom],
+      [spineX, botY],
+      [channelX, botY],
+      [channelX, topY],
+      [spineX, topY],
+      [spineX, firstY],
+    ],
+    arrow: { cx: spineX, y: firstY },
+  };
+}
+
+// Independent looping processes side by side, joined by synchronization lines.
+// Each process is its own cyclic lane (no begin/end, no convergence): process 0
+// loops on the left, the rest loop on the right.
+function layoutConcurrent(node: { processes: Array<{ label: string; body: PfcNode[] }> }, out: Layout): void {
+  const processes = node.processes;
+  const pms = processes.map((p) => measureSeq(p.body));
+  const hasTitles = processes.some((p) => p.label);
+  const headerY = MARGIN + (out.title ? TITLE_H : 0);
+  const titleBandY = headerY;
+  const topY = headerY + (hasTitles ? PROC_TITLE_H : 0) + LOOP_STUB;
+
+  const leftChannelX = MARGIN + 8;
+  let x = MARGIN + LOOP_GAP; // room for process 0's left loop channel
+  const spines: number[] = [];
+  pms.forEach((pm) => {
+    spines.push(x + pm.leftExt);
+    x += pm.leftExt + pm.rightExt + PROCESS_GAP;
+  });
+  const rightEdge = x - PROCESS_GAP;
+
+  const bottoms = processes.map((proc, i) => {
+    if (proc.label)
+      out.processTitles.push({ cx: spines[i], y: titleBandY + PROC_TITLE_FONT, label: proc.label });
+    return placeSeq(proc.body, spines[i], topY, out);
+  });
+
+  pairSyncMarkers(out);
+
+  processes.forEach((_proc, i) => {
+    const channelX = i === 0 ? leftChannelX : rightEdge + LOOP_GAP * i;
+    out.loops.push(makeLoop(spines[i], topY, bottoms[i], channelX));
+  });
+
+  out.width = rightEdge + LOOP_GAP * (processes.length - 1) + MARGIN;
+  out.height = Math.max(...bottoms) + LOOP_STUB + MARGIN;
+}
+
+// Pair markers collected during placement (by id) into side tabs + connectors.
+function pairSyncMarkers(out: Layout): void {
   const marks = ((out as any)._markers ?? []) as Array<{
     id: string;
     transfer: boolean;
@@ -262,15 +411,12 @@ export function layoutChart(chart: PfcChart): Layout {
     const aCenter = a.sx + a.sw / 2;
     const bCenter = b.sx + b.sw / 2;
     const aIsLeft = aCenter <= bCenter;
-    // a tab sits on the edge of a facing b, and vice-versa
     const aTabX = aIsLeft ? a.sx + a.sw : a.sx - SYNC_W;
     const bTabX = aIsLeft ? b.sx - SYNC_W : b.sx + b.sw;
     const aTabY = a.sy + a.sh / 2 - SYNC_H / 2;
     const bTabY = b.sy + b.sh / 2 - SYNC_H / 2;
     out.syncTabs.push({ x: aTabX, y: aTabY, w: SYNC_W, h: SYNC_H, label: a.id });
     out.syncTabs.push({ x: bTabX, y: bTabY, w: SYNC_W, h: SYNC_H, label: b.id });
-    // connector runs between the facing (inner) edges of the two tabs,
-    // routed with right-angle corners (horizontal → vertical → horizontal)
     const aFace = aIsLeft ? aTabX + SYNC_W : aTabX;
     const bFace = aIsLeft ? bTabX : bTabX + SYNC_W;
     const y1 = a.sy + a.sh / 2;
@@ -282,37 +428,6 @@ export function layoutChart(chart: PfcChart): Layout {
         : [[aFace, y1], [midX, y1], [midX, y2], [bFace, y2]];
     out.syncLines.push({ points, transfer });
   }
-
-  // end terminal (single upward triangle) — all paths have converged by here
-  if (showTerminals) {
-    out.lines.push({ x1: rootSpine, y1: bottom, x2: rootSpine, y2: bottom + TERM_GAP });
-    bottom += TERM_GAP;
-    out.endTri = { cx: rootSpine, top: bottom, w: TERM_W, h: TERM_H };
-    bottom += TERM_H;
-  }
-
-  out.width = 2 * half + 2 * MARGIN;
-
-  // loop-back: exit the last element, route up the right channel, re-enter the top
-  if (chart.loop) {
-    const channelX = MARGIN + 2 * half + LOOP_GAP;
-    const botY = bottom + LOOP_STUB;
-    const topY = firstY - LOOP_STUB;
-    out.loopPath = [
-      [rootSpine, bottom],
-      [rootSpine, botY],
-      [channelX, botY],
-      [channelX, topY],
-      [rootSpine, topY],
-      [rootSpine, firstY],
-    ];
-    out.loopArrow = { cx: rootSpine, y: firstY };
-    out.width = channelX + MARGIN;
-    bottom = botY;
-  }
-
-  out.height = bottom + MARGIN;
-  return out;
 }
 
 function placeSeq(seq: PfcNode[], spineX: number, startY: number, out: Layout): number {
@@ -345,6 +460,7 @@ function placeNode(node: PfcNode, spineX: number, cy: number, out: Layout): numb
       for (const mk of node.markers)
         store.push({ ...mk, sx: spineX - m.w! / 2, sy: cy, sw: m.w!, sh: STEP_H });
     }
+    if (node.note) emitNote(out, node.note, spineX - m.w! / 2, cy, m.w!, STEP_H);
     return cy + STEP_H;
   }
   if (node.kind === "trans") {
@@ -359,8 +475,11 @@ function placeNode(node: PfcNode, spineX: number, cy: number, out: Layout): numb
       for (const mk of node.markers)
         store.push({ ...mk, sx: spineX - m.w! / 2, sy: cy, sw: m.w!, sh: ALLOC_H });
     }
+    if (node.note) emitNote(out, node.note, spineX - m.w! / 2, cy, m.w!, ALLOC_H);
     return cy + ALLOC_H;
   }
+
+  if (node.kind !== "parallel" && node.kind !== "selective") return cy; // concurrent handled elsewhere
 
   // branch block
   const spines: number[] = (node as any)._spines;
