@@ -7,7 +7,8 @@
   "author": "ACRO",
   "workspaces": [
     "pfc-source/core",
-    "pfc-source/obsidian"
+    "pfc-source/obsidian",
+    "pfc-source/vscode"
   ],
   "scripts": {
     "build": "tsc -noEmit && node build.mjs",

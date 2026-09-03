@@ -1,18 +1,55 @@
-# PFC Charts — VS Code adapter (planned)
+# PFC Charts — VS Code extension
 
-This folder will hold the VS Code extension that renders ```pfc``` code blocks, reusing
-the shared engine in [`../core`](../core) (imported as `@pfc/core`).
+Renders ISA-88 **Procedure Function Charts** from ```` ```pfc ```` fenced code blocks in
+the built-in **Markdown preview**, using the shared engine in
+[`../core`](../core) (imported as `@pfc/core`).
 
-## Intended approach
+````markdown
+```pfc
+pfc Simple Batch
+step "Charge Reactor" :operation
+trans "level >= 500L"
+step "Heat" :operation
+```
+````
 
-- **Markdown preview plugin** — contribute `markdown.markdownItPlugins` with an
-  `extendMarkdownIt(md)` export that adds a fenced rule for `pfc`, emitting inline SVG via
-  a string renderer (`renderChartToString`) from `@pfc/core`. Theme via
-  `markdown.previewStyles`.
-- **Optional `.pfc` custom editor** — a webview panel that runs the DOM renderer directly
-  for live editing of standalone `.pfc` files.
+Open any Markdown file and run **Markdown: Open Preview** (`Ctrl/Cmd+Shift+V`); `pfc`
+blocks render as themed inline SVG that follows the active VS Code color theme.
 
-Enabling work in core: a string-based `renderChartToString()` alongside the current DOM
-renderer.
+## How it works
 
-Build output will land in `output/vscode/`.
+- The extension contributes a Markdown-It plugin (`markdown.markdownItPlugins`). Its
+  `extendMarkdownIt` hook adds a fence rule for `pfc` that calls
+  `renderChartToString(parsePfc(source))` from `@pfc/core` and emits inline SVG.
+- Theming is contributed via `markdown.previewStyles`
+  ([media/pfc-preview.css](media/pfc-preview.css)), which maps the chart classes onto
+  `--vscode-*` theme variables.
+- No runtime dependencies: `@pfc/core` is bundled into `dist/extension.js`.
+
+## Build & package
+
+From the **repository root**:
+
+```bash
+npm run build            # builds all targets, incl. this one -> output/vscode/
+# or just this target:
+node build.mjs vscode
+```
+
+The build produces a self-contained extension in `output/vscode/`
+(`package.json`, `dist/extension.js`, `media/`). Package it with
+[`@vscode/vsce`](https://github.com/microsoft/vscode-vsce):
+
+```bash
+cd output/vscode
+npx @vscode/vsce package
+```
+
+Or press <kbd>F5</kbd> with `output/vscode` opened as the extension folder to launch an
+Extension Development Host.
+
+## DSL reference
+
+The chart language is identical across all targets — see
+[../obsidian/DOCUMENTATION.md](../obsidian/DOCUMENTATION.md) and the authoring skill in
+[../../pfc-skills](../../pfc-skills).

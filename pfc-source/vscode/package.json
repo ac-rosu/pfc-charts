@@ -1,0 +1,36 @@
+{
+  "name": "pfc-charts",
+  "displayName": "PFC Charts (ISA-88)",
+  "description": "Render ISA-88 Procedure Function Charts from `pfc` code blocks in the Markdown preview.",
+  "version": "1.0.0",
+  "publisher": "acro",
+  "license": "MIT",
+  "author": "ACRO",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "isa-88",
+    "pfc",
+    "sfc",
+    "markdown",
+    "diagram"
+  ],
+  "activationEvents": [
+    "onLanguage:markdown"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "markdown.markdownItPlugins": true,
+    "markdown.previewStyles": [
+      "./media/pfc-preview.css"
+    ]
+  },
+  "devDependencies": {
+    "@pfc/core": "*"
+  }
+}

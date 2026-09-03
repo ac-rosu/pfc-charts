@@ -39,5 +39,7 @@ npm run format           # prettier --write
   See [pfc-source/obsidian/README.md](pfc-source/obsidian/README.md) for install/usage
   and [pfc-source/obsidian/DOCUMENTATION.md](pfc-source/obsidian/DOCUMENTATION.md) for the
   full DSL reference.
-- **VS Code** — scaffolded under `pfc-source/vscode/` (adapter not implemented yet).
+- **VS Code** — a Markdown-preview extension built to `output/vscode/`. Renders `pfc`
+  fenced blocks as inline SVG in the built-in preview. See
+  [pfc-source/vscode/README.md](pfc-source/vscode/README.md).
 - **Fumadocs** — scaffolded under `pfc-source/fumadocs/` (adapter not implemented yet).
