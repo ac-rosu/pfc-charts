@@ -30,7 +30,8 @@ a themed SVG diagram in both reading mode and live preview.
 
 ## Installation
 
-No build required — the plugin ships pre-compiled. Copy three files into your vault:
+Build the plugin with `npm run build:obsidian` (from the repo root), then copy the three
+generated files from `output/obsidian/` into your vault:
 
 ```
 <your vault>/.obsidian/plugins/pfc-charts/
@@ -357,23 +358,26 @@ at the top of `src/layout.ts` and in the corner/plus constants in `src/render.ts
 
 ## Building from source
 
-Requires Node 18+.
+Requires Node 18+. All commands run from the **repository root**.
 
 ```bash
 npm install
-npm run build      # type-checks (tsc) then bundles to main.js (esbuild)
-npm run dev        # watch mode
-npm test           # bundles and runs the parser/layout unit tests (node --test)
-npm run lint       # eslint
-npm run format     # prettier --write
+npm run build:obsidian   # type-checks (tsc) then bundles -> output/obsidian/
+npm run dev              # watch-rebuild the Obsidian target
+npm test                 # bundles and runs the parser/layout unit tests (node --test)
+npm run lint             # eslint
+npm run format           # prettier --write
 ```
 
-Source layout:
+The build writes `main.js`, `manifest.json`, and `styles.css` into `output/obsidian/`.
 
-- `src/parser.ts` — text DSL → chart model
-- `src/layout.ts` — deterministic top-to-bottom layout (no external layout library)
-- `src/render.ts` — chart model → themed SVG
-- `src/main.ts` — Obsidian `registerMarkdownCodeBlockProcessor("pfc", …)`
+Source layout (shared core + Obsidian adapter):
+
+- `pfc-source/core/src/parser.ts` — text DSL → chart model
+- `pfc-source/core/src/layout.ts` — deterministic top-to-bottom layout (no external layout library)
+- `pfc-source/core/src/render.ts` — chart model → themed SVG
+- `pfc-source/core/src/index.ts` — the `@pfc/core` public surface
+- `pfc-source/obsidian/src/main.ts` — Obsidian `registerMarkdownCodeBlockProcessor("pfc", …)`
 
 ---
 
@@ -389,9 +393,9 @@ Three stages, mirroring how Mermaid works:
 3. **Render** — `renderChart(chart)` builds an SVG DOM element from the layout,
    using CSS classes so all theming comes from `styles.css`.
 
-Only `main.ts` depends on Obsidian; the parser, layout, and renderer are host-agnostic,
-which makes porting the core to another host (e.g. a VS Code webview) mostly a packaging
-exercise.
+Only `main.ts` depends on Obsidian; the parser, layout, and renderer live in the shared
+`@pfc/core` package with no host dependencies, which makes porting the core to another
+host (e.g. a VS Code webview or a Fumadocs component) mostly a packaging exercise.
 
 ---
 

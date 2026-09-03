@@ -1,0 +1,40 @@
+{
+  "name": "pfc-charts",
+  "version": "1.0.0",
+  "description": "ISA-88 Procedure Function Charts — a shared core rendered into Obsidian, VS Code, and Fumadocs targets.",
+  "private": true,
+  "license": "MIT",
+  "author": "ACRO",
+  "workspaces": [
+    "pfc-source/core",
+    "pfc-source/obsidian"
+  ],
+  "scripts": {
+    "build": "tsc -noEmit && node build.mjs",
+    "build:obsidian": "tsc -noEmit && node build.mjs obsidian",
+    "dev": "node build.mjs obsidian --watch",
+    "test": "node pfc-source/core/esbuild.tests.mjs && node --test \"pfc-source/core/tests-dist/*.test.js\"",
+    "lint": "eslint .",
+    "format": "prettier --write \"pfc-source/**/*.ts\"",
+    "format:check": "prettier --check \"pfc-source/**/*.ts\""
+  },
+  "keywords": [
+    "obsidian",
+    "vscode",
+    "fumadocs",
+    "isa-88",
+    "pfc",
+    "sfc",
+    "diagram"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.20.0",
+    "eslint": "^9.39.5",
+    "obsidian": "^1.4.11",
+    "prettier": "^3.9.6",
+    "typescript": "^5.4.0",
+    "typescript-eslint": "^8.69.0"
+  }
+}

@@ -36,9 +36,10 @@ step "Discharge" :phase
 ```
 ````
 
-## Install (no build needed)
+## Install
 
-Copy three files into your vault:
+Build with `npm run build:obsidian` (from the repo root), then copy the three generated
+files from `output/obsidian/` into your vault:
 
 ```
 <your vault>/.obsidian/plugins/pfc-charts/
@@ -123,25 +124,24 @@ stroke to recolor steps.
 
 ## Building from source
 
-Requires Node 18+.
+Requires Node 18+. Run from the **repository root**.
 
 ```bash
 npm install
-npm run build      # type-checks then bundles to main.js
-npm run dev        # watch mode
-npm test           # runs the parser/layout unit tests
+npm run build:obsidian   # type-checks then bundles -> output/obsidian/
+npm run dev              # watch-rebuild the Obsidian target
+npm test                 # runs the parser/layout unit tests
 ```
 
-Source layout:
+Source layout (shared core + Obsidian adapter):
 
-- `src/parser.ts` — text DSL → chart model
-- `src/layout.ts` — deterministic top-to-bottom layout (no external deps)
-- `src/render.ts` — model → themed SVG
-- `src/main.ts` — Obsidian code-block processor
+- `pfc-source/core/src/parser.ts` — text DSL → chart model
+- `pfc-source/core/src/layout.ts` — deterministic top-to-bottom layout (no external deps)
+- `pfc-source/core/src/render.ts` — model → themed SVG
+- `pfc-source/obsidian/src/main.ts` — Obsidian code-block processor
 
-The parser/layout/render modules have no Obsidian or DOM-framework dependencies
-beyond a canvas for text measurement, which makes porting the core to a VS Code
-webview extension straightforward later.
+The `@pfc/core` package has no Obsidian or DOM-framework dependencies beyond a canvas for
+text measurement, which makes the planned VS Code and Fumadocs adapters straightforward.
 
 ## License
 

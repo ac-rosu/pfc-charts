@@ -1,6 +1,5 @@
 import { Plugin } from "obsidian";
-import { parsePfc, ParseError } from "./parser";
-import { renderChart } from "./render";
+import { parsePfc, ParseError, renderChart } from "@pfc/core";
 
 export default class PfcChartsPlugin extends Plugin {
   async onload() {

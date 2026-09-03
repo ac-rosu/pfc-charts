@@ -1,0 +1,12 @@
+{
+  "name": "pfc-obsidian",
+  "version": "1.0.0",
+  "description": "Obsidian plugin adapter for PFC Charts (consumes @pfc/core).",
+  "private": true,
+  "license": "MIT",
+  "author": "ACRO",
+  "main": "main.js",
+  "dependencies": {
+    "@pfc/core": "*"
+  }
+}
