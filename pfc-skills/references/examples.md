@@ -17,6 +17,7 @@ wrap in a ` ```pfc ` fence when emitting.
 10. Notes and process titles
 11. Conditional jump / retry loop (goto)
 12. All-features example
+13. Drill-down links between charts
 
 ---
 
@@ -318,3 +319,32 @@ Covers: title, comment, begin/end terminals, initial step, all four levels, `+`
 encapsulation, allocation, explicit and implicit transitions, simultaneous sequence with
 a nested sequence selection, a top-level sequence selection, synchronization,
 material transfer, and `uniform-width`.
+
+## 13. Drill-down links between charts
+
+A unit procedure whose operations open their own charts. `reaction.md`:
+
+```
+pfc Reaction
+step "Charge" :operation
+link "charge.md"
+step "React" :operation
+link "react.md#phases"
+step "Cool" :operation
+link "#cool-operation"
+step "Discharge" :operation
+```
+
+`charge.md` then holds the Charge operation's phases:
+
+```
+pfc Charge
+step "Open Inlet Valve" :phase
+step "Dose Water" :phase
+trans "level >= 500L"
+step "Close Inlet Valve" :phase
+```
+
+Each `link` adds the `+` to its step. `React` jumps to the `## Phases` heading in
+`react.md`; `Cool` jumps to a `## Cool operation` heading in the same note. `Discharge`
+has no lower-level chart, so it has no `link` and no `+`. Phases are never linked.

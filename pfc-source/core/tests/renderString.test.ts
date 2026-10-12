@@ -44,3 +44,18 @@ end`)
   assert.match(svg, /class="pfc-sync"/);
   assert.ok(svg.length > 100);
 });
+
+test("linked steps get an HTML anchor overlay only when links are enabled", () => {
+  const chart = `step "Charge" :operation\nlink "charge.md"\nstep "Cool"`;
+  const off = renderChartToString(parsePfc(chart));
+  assert.ok(!off.includes("foreignObject"), "no overlay by default");
+  const on = renderChartToString(parsePfc(chart), { links: true });
+  assert.equal(on.match(/<foreignObject /g)?.length, 1, "one overlay, for the linked step only");
+  // an explicit </a>: HTML ignores a self-closing <a/>, which would swallow the rest of the SVG
+  assert.match(on, /<foreignObject [^>]*class="pfc-link-area"[^>]*><a href="charge.md" class="pfc-link" title="[^"]*"><\/a><\/foreignObject>/);
+});
+
+test("link targets are attribute-escaped", () => {
+  const svg = renderChartToString(parsePfc(`step "a" :op\nlink "x.md?a=1&b=\\"2\\""`), { links: true });
+  assert.match(svg, /href="x\.md\?a=1&amp;b=/);
+});

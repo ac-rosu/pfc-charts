@@ -4,6 +4,17 @@ import { PfcChart, Level } from "./parser";
 import { layoutChart, Layout } from "./layout";
 
 const SVGNS = "http://www.w3.org/2000/svg";
+const XHTMLNS = "http://www.w3.org/1999/xhtml";
+
+export interface RenderOptions {
+  // Make linked steps clickable: an HTML <a> covering the step box, inside a
+  // <foreignObject>. It is real HTML (not an SVG <a>) so host link handling that
+  // only recognises HTML anchors, like the VS Code Markdown preview, picks it up.
+  links?: boolean;
+  // Turn a step's `link` target into the anchor's href (e.g. a docs-site URL).
+  // Default: the target as written.
+  linkHref?: (target: string) => string;
+}
 
 function svgEl(name: string, attrs: Record<string, string | number>): SVGElement {
   const e = document.createElementNS(SVGNS, name);
@@ -104,7 +115,7 @@ function markLine(corner: Corner, x: number, y: number, w: number, h: number): R
   }
 }
 
-export function renderChart(chart: PfcChart): SVGElement {
+export function renderChart(chart: PfcChart, opts: RenderOptions = {}): SVGElement {
   const L: Layout = layoutChart(chart);
 
   const svg = svgEl("svg", {
@@ -217,11 +228,13 @@ export function renderChart(chart: PfcChart): SVGElement {
         svg.appendChild(svgEl("line", { ...markLine(corner, s.x, s.y, s.w, s.h), class: "pfc-corner" }));
     }
 
-    // "+" nestled in the top-right corner triangle (between diagonal and corner)
+    // "+" centred in the top-right corner triangle: at its incenter, equally far from
+    // the two box edges and the diagonal (so equal strokes keep it centred)
     if (s.encapsulates) {
-      const px = s.x + s.w - MARK * 0.4;
-      const py = s.y + MARK * 0.4;
-      const a = 3;
+      const inset = (MARK * (2 - Math.SQRT2)) / 2;
+      const px = s.x + s.w - inset;
+      const py = s.y + inset;
+      const a = 2.5;
       svg.appendChild(svgEl("line", { x1: px - a, y1: py, x2: px + a, y2: py, class: "pfc-plus" }));
       svg.appendChild(svgEl("line", { x1: px, y1: py - a, x2: px, y2: py + a, class: "pfc-plus" }));
     }
@@ -237,6 +250,17 @@ export function renderChart(chart: PfcChart): SVGElement {
     });
     label.textContent = s.label;
     svg.appendChild(label);
+
+    if (opts.links && s.link) {
+      const area = svgEl("foreignObject", { x: s.x, y: s.y, width: s.w, height: s.h, class: "pfc-link-area" });
+      const a = document.createElementNS(XHTMLNS, "a");
+      a.setAttribute("href", opts.linkHref ? opts.linkHref(s.link) : s.link);
+      a.setAttribute("class", "pfc-link");
+      a.setAttribute("title", `${s.label} → ${s.link}`);
+      a.textContent = ""; // keeps an explicit </a> when serialised (HTML has no self-closing <a/>)
+      area.appendChild(a);
+      svg.appendChild(area);
+    }
   }
 
   // begin / end terminals (placeholders): begin points down, end points up

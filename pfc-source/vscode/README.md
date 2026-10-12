@@ -20,7 +20,11 @@ blocks render as themed inline SVG that follows the active VS Code color theme.
 
 - The extension contributes a Markdown-It plugin (`markdown.markdownItPlugins`). Its
   `extendMarkdownIt` hook adds a fence rule for `pfc` that calls
-  `renderChartToString(parsePfc(source))` from `@pfc/core` and emits inline SVG.
+  `renderChartToString(parsePfc(source), { links: true })` from `@pfc/core` and emits
+  inline SVG.
+- Linked steps (`link "…"`) get an HTML `<a>` over the step box, inside a
+  `<foreignObject>`. It has to be HTML: the preview only follows clicks on HTML anchors
+  (it ignores SVG `<a>`), and then opens relative `.md` links itself.
 - Theming is contributed via `markdown.previewStyles`
   ([media/pfc-preview.css](media/pfc-preview.css)), which maps the chart classes onto
   `--vscode-*` theme variables.

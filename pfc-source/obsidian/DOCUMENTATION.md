@@ -15,6 +15,8 @@ a themed SVG diagram in both reading mode and live preview.
   - [Branch blocks: parallel & selective](#branch-blocks-parallel--selective)
   - [Synchronization & material transfer](#synchronization--material-transfer)
   - [Notes](#notes)
+  - [Step links (drill-down)](#step-links-drill-down)
+  - [Conditional jump (goto)](#conditional-jump-goto)
   - [Loop](#loop)
   - [Concurrent processes](#concurrent-processes)
   - [Comments](#comments)
@@ -24,7 +26,7 @@ a themed SVG diagram in both reading mode and live preview.
 - [Building from source](#building-from-source)
 - [Architecture](#architecture)
 - [Known limitations](#known-limitations)
-- [Symbol coverage (ISA-88 Figure 7)](#symbol-coverage-isa-88-figure-7)
+- [Symbol coverage (ISA-88)](#symbol-coverage-isa-88)
 
 ---
 
@@ -130,7 +132,10 @@ step [ID] "Label" [:level] [initial] [+]
 
 - **`initial`** — draw a double border (initial-step marker). Off by default.
 - **`+`** (or `contains` / `encapsulates`) — the element contains a lower-level PFC;
-  draws a `+` in the top-right corner. Independent of the level.
+  draws a `+` in the top-right corner. Operations and higher only: a phase is the lowest
+  procedural level, so `+` on a phase (or on a step with no level, which defaults to a
+  phase) is a parse error. A step with a [`link`](#step-links-drill-down) gets the `+`
+  automatically.
 
 Modifiers may appear before or after the quoted label:
 
@@ -224,6 +229,40 @@ note "text"
 A boxed annotation attached to the step or allocation above it, drawn to the side with a
 dashed leader line. Text wraps automatically. Works in any chart type.
 
+### Step links (drill-down)
+
+```
+step "Charge" :operation
+link "charge.md"            # another note
+step "React" :operation
+link "react.md#phases"      # a heading in another note
+step "Cool" :operation
+link "#cool-operation"      # a heading in this note
+```
+
+`link "target"` goes right after a step and makes the whole step box clickable: it opens
+the lower-level chart the step contains, e.g. the phases of an operation. A linked step
+shows the `+` automatically.
+
+- **Operations and higher only.** A phase is the lowest procedural level and has no
+  lower-level chart, so `link` on a phase is a parse error (a step without a level is a
+  phase).
+- **Target:** a path to another note relative to the current one (`.md` optional, `./`
+  and `../` allowed, spaces fine), optionally followed by `#heading`. Write the heading
+  as its slug (`#cool-operation`): that works in every app; Obsidian and Fumadocs also
+  accept the heading text (`#Cool operation`). `https://` and other URLs open in the
+  browser. `javascript:`, `data:` and `vbscript:` targets are rejected.
+- **Obsidian:** click opens the note, Mod-click opens it in a new tab, and Mod-hover
+  shows a page preview (change that under Settings → Page preview → PFC Charts). A note
+  that doesn't exist yet says so in the tooltip and is created on click, like any
+  unresolved link. Plain note names (`link "Charge Operation"`) work too.
+- **VS Code:** click opens the target in the Markdown preview (or the editor, per the
+  `markdown.preview.openMarkdownLinks` setting). A missing file shows VS Code's
+  "file not found" message with a **Create file** button.
+- **Fumadocs:** the target is resolved as a file next to the page and becomes that
+  page's URL. If the site uses trailing slashes, set the remark plugin's
+  `trailingSlash` option (see the Fumadocs adapter README).
+
 ### Conditional jump (goto)
 
 ```
@@ -299,6 +338,8 @@ itself (the sync is the "wait").
   use `parallel` + `loop`.)
 - **Two branches hand off material** → `transfer … out` / `… in`.
 - **Two branches must wait for each other** → `sync`.
+- **Let readers drill down from an operation to its phases** → `link` the step to the
+  note with the lower-level chart (operations and higher).
 - **Retry / loop back to an earlier step on a condition** → give the target step an id
   (`step HEAT "Heat"`) and `goto HEAT` under a `trans` (typically one branch of a
   `selective`).
@@ -325,6 +366,11 @@ when the source is invalid. Common messages:
 | `unexpected '<line>' in 'concurrent' (expected 'process' or 'end')` | A stray line where a `process` or `end` was expected. |
 | `'concurrent' must be at the top level` | `concurrent` nested inside a branch. |
 | `'concurrent' must be the only thing in the chart` | Other elements alongside `concurrent`. |
+| `a phase is the lowest procedural level and can't contain a lower-level chart: …` | `+` on a phase, or on a step with no level. |
+| `'link' must come right after a step` | `link` not directly after a step (allocations can't be linked). |
+| `'link' opens a lower-level chart, but a phase is the lowest procedural level: …` | `link` on a phase, or on a step with no level. |
+| `link needs a target` | `link` with an empty target. |
+| `link target '…' is not allowed` | A `javascript:`, `data:` or `vbscript:` target. |
 
 ---
 
@@ -338,6 +384,7 @@ automatically. Override any of these classes in `styles.css`:
 | `.pfc-step-rect` | Step box outline/fill |
 | `.pfc-corner` | Level corner diagonals |
 | `.pfc-plus` | Encapsulation `+` mark |
+| `.pfc-link` | Clickable area of a linked step (`.is-unresolved` in Obsidian when the note doesn't exist yet) |
 | `.pfc-step-initial` | Initial-step double border |
 | `.pfc-line` | Directed links (connectors) |
 | `.pfc-bar` | Sequence bars (single/double) |
@@ -424,7 +471,7 @@ All symbols in the S88.02 PFC symbol key are supported:
 
 - Begin / End placeholders (triangles)
 - Step levels via corner diagonals (phase, operation, unit procedure, procedure)
-- `+` "contains a lower-level PFC"
+- `+` "contains a lower-level PFC" (clickable through to that PFC with `link`)
 - Directed link (implicit transition) and explicit transition (two lines + condition)
 - Sequence selection (single bars) and simultaneous sequence (double bars)
 - Allocation (ellipse)

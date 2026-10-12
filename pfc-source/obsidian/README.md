@@ -58,7 +58,7 @@ Indentation is optional — structure comes from keywords. `//` and `#` start co
 | Statement | Meaning |
 |-----------|---------|
 | `pfc <title>` | Optional chart title (first line). |
-| `step [ID] "Label" [:level] [initial] [+]` | A procedural step. `ID`, `initial`, and `+` optional. `+` (or `contains`/`encapsulates`) marks a step that contains a lower-level PFC. |
+| `step [ID] "Label" [:level] [initial] [+]` | A procedural step. `ID`, `initial`, and `+` optional. `+` (or `contains`/`encapsulates`) marks a step that contains a lower-level PFC (operations and higher; not phases). |
 | `trans "condition"` | An **explicit** transition, drawn as two lines with the condition beside it. Alias: `transition`. |
 | `parallel` … `branch` … `end` | Simultaneous (AND) branches — drawn with **double** bars spanning the branches. |
 | `selective` … `branch` … `end` | Alternative (OR) branches — drawn with **single** bars. |
@@ -70,6 +70,7 @@ Indentation is optional — structure comes from keywords. `//` and `#` start co
 | `uniform-width` | Directive: draw every step at the width of the widest step (allocations likewise), for a uniform look. |
 | `concurrent` … `process ["label"]` … `end` | Two or more **independent looping lanes**, each its own cycle (no begin/end, no convergence). Each `process` may take an optional label shown above the lane. Use `sync`/`transfer` to connect them. Must be the whole chart. |
 | `note "<text>"` | A boxed annotation attached to the **step or allocation above it**, drawn to the side with a leader line. Text wraps automatically. |
+| `link "<target>"` | Makes the **step above it** clickable, opening the note with its lower-level chart (e.g. `link "Charge Operation"` or `link "charge.md#phases"`). Adds the `+` automatically. Operations and higher only. Mod-click opens a new tab; Mod-hover previews the note; a missing note is created on click. |
 | `goto <id>` | Jump to an earlier step (its **id** — the bare word before the label, e.g. `step HEAT "Heat"`). Draws a compact **"↺ label" chip** naming the target (no wire). Add `line` (`goto <id> line`) to draw the routed back-link instead. Alias: `return`. Put it under a `trans` (usually one branch of a `selective`) for a conditional retry. |
 
 ### Transitions: implicit vs explicit
@@ -107,7 +108,8 @@ top-left → top-right → bottom-right → bottom-left:
 Add `+` (or `contains` / `encapsulates`) to a step to place the "+" mark in the
 top-right corner, meaning the element **contains a lower-level PFC** rather than
 referencing an equipment procedural element — e.g. `step "Charge" :operation +`.
-This is independent of the level.
+A phase is the lowest procedural level and can't contain one, so `+` on a phase (or on
+a step with no level, which is a phase) is a parse error.
 
 Add the `initial` keyword to a step (e.g. `step "Add Water" :phase initial`) to
 draw it with a double outline. This is off by default — the begin triangle

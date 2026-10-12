@@ -80,7 +80,9 @@ step [ID] "Label" [:level] [initial] [+]
   - `:procedure` / `:proc` — 4 marks (all corners)
 - `initial` — draw a double border (marks the initial step; optional, off by default).
 - `+` (or `contains` / `encapsulates`) — the element **contains a lower-level PFC**;
-  draws a "+" in the top-right corner. Independent of the level.
+  draws a "+" in the top-right corner. Only for operations and higher: a phase is the
+  lowest procedural level, so `+` on a phase (or on a step with no level, which is a
+  phase) is a parse error.
 
 Modifiers may appear before or after the quoted label:
 `step "Charge" :operation +` or `step + "Charge" :operation` both work.
@@ -148,6 +150,24 @@ Pair exactly two markers per id.
   to the side with a leader line (right by default; left when a sync/transfer tab is on
   the right). Text wraps automatically.
 
+### Step links (drill-down)
+
+- `link "target"` — directly after a step: the step box becomes a link to the note holding
+  its lower-level chart (e.g. an operation's phases). Adds the `+` automatically.
+- Only on `:operation`, `:unitprocedure` or `:procedure` steps. `link` on a phase (or a
+  step without a level) is a parse error.
+- Target: a relative path to another note (`charge.md`, `../ops/charge.md`; `.md`
+  optional), optionally with `#heading-slug` (`react.md#phases`, or `#cool-operation`
+  for a heading in the same note). Prefer heading slugs: they work in VS Code, Obsidian
+  and Fumadocs.
+
+```
+step "Charge" :operation
+link "charge.md"
+step "React" :operation
+link "react.md#phases"
+```
+
 ### Conditional jump (goto / retry loop)
 
 Give a step an **id** (the bare word before its quoted label) and jump back to it:
@@ -201,10 +221,14 @@ end
 
 - `parallel`, `selective`, and `concurrent` need **≥2** children and no empty ones —
   otherwise the plugin shows a parse error.
-- `sync`, `transfer`, and `note` must come **directly after** a `step` or `alloc`.
+- `sync`, `transfer`, and `note` must come **directly after** a `step` or `alloc`; `link`
+  directly after a `step`.
 - `goto <id>` targets a step's **id** (the bare word before its label, e.g.
   `step HEAT "Heat"`); the id must exist. Use it under a `trans` for a conditional retry.
 - `transfer` requires a direction: `in` or `out`.
+- Never put `+` or `link` on a phase: phases are the lowest level and contain no
+  lower-level PFC. A step without a level is a phase, so give encapsulating or linked
+  steps an explicit level.
 - `loop` and `no-terminals` both remove the begin/end triangles, so they can't be shown
   together with terminals. `concurrent` also has no terminals.
 - Pick `selective` (OR) vs `parallel` (AND) by whether one path or all paths run.
@@ -221,7 +245,8 @@ end
    `concurrent`).
 3. Add steps with appropriate `:level`s and explicit `trans` where a real condition
    gates progress; leave links implicit otherwise.
-4. Add `alloc`, `sync`/`transfer`, and `note` where they clarify the recipe.
+4. Add `alloc`, `sync`/`transfer`, and `note` where they clarify the recipe. When the
+   lower-level charts live in other notes, `link` each encapsulating step to its note.
 5. Emit the `pfc` fenced block. Do not try to render or open Obsidian.
 
 For a gallery of complete, copy-pasteable charts covering every construct (linear,
