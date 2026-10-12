@@ -66,6 +66,9 @@ test("directives: no-terminals and loop", () => {
   assert.equal(parsePfc(`terminals off\nstep "a"`).terminals, false);
   assert.equal(parsePfc(`loop\nstep "a"`).loop, true);
   assert.equal(parsePfc(`cycle\nstep "a"`).loop, true);
+  assert.equal(parsePfc(`step "a"`).uniformWidth, false);
+  assert.equal(parsePfc(`uniform-width\nstep "a"`).uniformWidth, true);
+  assert.equal(parsePfc(`uniform\nstep "a"`).uniformWidth, true);
 });
 
 test("parallel requires two non-empty branches", () => {

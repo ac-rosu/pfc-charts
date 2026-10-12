@@ -67,6 +67,7 @@ Indentation is optional — structure comes from keywords. `//` and `#` start co
 | `transfer <id> out` / `transfer <id> in` | Attaches a material-transfer tab to the step or allocation above it — a dashed **arrow** runs from the `out` tab to the matching `in` tab. |
 | `no-terminals` | Directive: hide the begin/end triangles for this chart. |
 | `loop` | Directive: make the chart a cycle — the end links back to the start. |
+| `uniform-width` | Directive: draw every step at the width of the widest step (allocations likewise), for a uniform look. |
 | `concurrent` … `process ["label"]` … `end` | Two or more **independent looping lanes**, each its own cycle (no begin/end, no convergence). Each `process` may take an optional label shown above the lane. Use `sync`/`transfer` to connect them. Must be the whole chart. |
 | `note "<text>"` | A boxed annotation attached to the **step or allocation above it**, drawn to the side with a leader line. Text wraps automatically. |
 | `goto <id>` | Jump to an earlier step (its **id** — the bare word before the label, e.g. `step HEAT "Heat"`). Draws a compact **"↺ label" chip** naming the target (no wire). Add `line` (`goto <id> line`) to draw the routed back-link instead. Alias: `return`. Put it under a `trans` (usually one branch of a `selective`) for a conditional retry. |

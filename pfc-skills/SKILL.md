@@ -59,6 +59,8 @@ Comments: a line starting with `#`, or `//` anywhere (rest of line ignored).
 - `no-terminals` — hide the begin/end triangles (directive, anywhere).
 - `loop` — make the whole chart a cycle; the end links back to the start. Removes the
   begin/end triangles. (Aliases: `loop back`, `cycle`.)
+- `uniform-width` — draw every step box at the width of the widest one (allocations
+  likewise), for a uniform look. Off by default: boxes size to their own label. (Alias: `uniform`.)
 
 By default a normal chart shows a **begin** triangle (▽) at the top and an **end**
 triangle (△) at the bottom. `loop` and `concurrent` replace these with the cycle links.
@@ -143,7 +145,8 @@ Pair exactly two markers per id.
 ### Notes
 
 - `note "text"` — a boxed annotation attached to the step or allocation above it, drawn
-  to the side with a leader line. Text wraps automatically.
+  to the side with a leader line (right by default; left when a sync/transfer tab is on
+  the right). Text wraps automatically.
 
 ### Conditional jump (goto / retry loop)
 
@@ -207,7 +210,8 @@ end
 - Pick `selective` (OR) vs `parallel` (AND) by whether one path or all paths run.
 - Prefer `concurrent` over `parallel`+`loop` when lanes cycle independently and only meet
   at a rendezvous (see the mental-model note above).
-- Keep labels short; long labels widen boxes. Use `note` for detail.
+- Keep labels short; long labels widen boxes (with `uniform-width`, every box). Use `note`
+  for detail.
 
 ## Workflow
 

@@ -1,9 +1,10 @@
 # PFC examples
 
 Copy-pasteable `pfc` charts covering every construct. Each is a complete chart body;
-wrap in a ```` ```pfc ```` fence when emitting.
+wrap in a ` ```pfc ` fence when emitting.
 
 ## Contents
+
 1. Linear sequence (levels, implicit vs explicit transitions)
 2. Encapsulation and the initial step
 3. Simultaneous sequence (parallel / AND)
@@ -23,6 +24,7 @@ wrap in a ```` ```pfc ```` fence when emitting.
 
 ```
 pfc Simple Batch
+uniform-width
 step "Charge Reactor" :operation
 trans "level >= 500L"
 step "Heat" :operation
@@ -38,6 +40,7 @@ when `Heat` finishes). The `trans` lines are **explicit** conditions.
 
 ```
 pfc Levels
+uniform-width
 step "Master Recipe" :procedure + initial
 step "Prepare" :unitprocedure +
 step "Charge" :operation
@@ -51,6 +54,7 @@ step "Add Reagent" :phase
 
 ```
 pfc Charge and React
+uniform-width
 step "Add Water" :phase
 trans "level >= 500L"
 step "Heat Reactor" :operation
@@ -71,6 +75,7 @@ All branches run together; the join waits for all of them.
 
 ```
 pfc Quality Gate
+uniform-width
 step "Inspect" :operation
 selective
   branch
@@ -88,6 +93,7 @@ Exactly one branch is taken, chosen by its leading transition.
 
 ```
 pfc Nested
+uniform-width
 step "Start" :phase
 parallel
   branch
@@ -109,6 +115,7 @@ step "Done" :phase
 
 ```
 pfc Allocation
+uniform-width
 alloc "Tank A, B or C"
 step "Preparation" :unitprocedure +
 trans "prep done"
@@ -123,6 +130,7 @@ step "Discharge" :phase
 
 ```
 pfc Transfer and Sync
+uniform-width
 step "Batch Start" :phase
 parallel
   branch
@@ -149,6 +157,7 @@ Note that `sync S1` on the second branch attaches to the **allocation** ellipse.
 
 ```
 pfc Welding Cell
+uniform-width
 parallel
   branch
     step "Manual Load" :operation
@@ -172,6 +181,7 @@ overlap itself.
 
 ```
 pfc Machine Cycle
+uniform-width
 concurrent
   process "Main Cycle"
     step "Operation 1" :operation
@@ -187,7 +197,7 @@ end
 ```
 
 The `R` sync is the rendezvous: the main lane, after Operation 4, meets the outfeed lane
-at its wait point. If Operation 5 hasn't finished (the lane hasn't returned to *Wait*),
+at its wait point. If Operation 5 hasn't finished (the lane hasn't returned to _Wait_),
 the main lane holds at `R`. Each lane loops independently.
 
 Concurrent scales to any number of lanes — each loops back in its own right-hand gutter,
@@ -195,6 +205,7 @@ so lanes never overlap. A three-lane cell with a chain of rendezvous points:
 
 ```
 pfc Three-Lane Cell
+uniform-width
 concurrent
   process "Infeed"
     step "Load" :operation
@@ -211,13 +222,14 @@ concurrent
 end
 ```
 
-Each id (`A`, `B`) pairs exactly two tabs across adjacent lanes; the connectors hop over
-the intervening loop channels.
+Each id (`A`, `B`) pairs exactly two tabs across adjacent lanes; the dashed connectors
+cross the intervening loop channels.
 
 ## 10. Notes and process titles
 
 ```
 pfc Annotated
+uniform-width
 step "Charge" :operation
 note "Operator confirms the charge weight before proceeding"
 trans "confirmed"
@@ -235,6 +247,7 @@ transition. Here Heat repeats until the temperature is reached:
 
 ```
 pfc Heat with Retry
+uniform-width
 step "Charge" :operation
 step HEAT "Heat" :operation
 step "Check Temperature" :operation
@@ -258,6 +271,7 @@ explicitly wanted for a tight in-lane retry.
 
 ```
 pfc Full Example
+uniform-width
 // batch process: preparation transfers material to reaction
 step "Start" :procedure + initial
 trans "operator start"
@@ -302,5 +316,5 @@ step "Done" :phase
 
 Covers: title, comment, begin/end terminals, initial step, all four levels, `+`
 encapsulation, allocation, explicit and implicit transitions, simultaneous sequence with
-a nested sequence selection, a top-level sequence selection, synchronization, and
-material transfer.
+a nested sequence selection, a top-level sequence selection, synchronization,
+material transfer, and `uniform-width`.
