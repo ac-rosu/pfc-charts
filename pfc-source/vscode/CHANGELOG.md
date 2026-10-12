@@ -9,6 +9,8 @@
   transition labels, and keep apart from one another instead of overlapping.
 - A `note` on a step whose sync/transfer tab is on its right now moves to the left, so
   the connector no longer runs through it.
+- Works in Restricted Mode (untrusted workspaces): the extension only renders chart
+  text and runs no workspace code.
 
 ## 1.0.0
 

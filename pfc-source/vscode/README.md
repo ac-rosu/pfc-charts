@@ -42,7 +42,7 @@ The build produces a self-contained extension in `output/vscode/`
 
 ```bash
 cd output/vscode
-npx @vscode/vsce package --allow-missing-repository
+npx @vscode/vsce package --no-dependencies
 ```
 
 Or press <kbd>F5</kbd> with `output/vscode` opened as the extension folder to launch an
@@ -50,16 +50,18 @@ Extension Development Host.
 
 ## Releasing a new version
 
-1. Bump `version` in [package.json](package.json) and add an entry to
+1. Bump `version` in [package.json](package.json) by hand and add an entry to
    [CHANGELOG.md](CHANGELOG.md).
 2. `npm run build:vscode` from the repo root.
-3. Package and/or publish from `output/vscode/`:
+3. Package from `output/vscode/`:
    ```bash
    cd output/vscode
-   npx @vscode/vsce package --allow-missing-repository            # -> pfc-charts-<v>.vsix
-   npx @vscode/vsce publish -p <PAT> --allow-missing-repository   # publish to Marketplace
+   npx @vscode/vsce package --no-dependencies   # -> pfc-charts-<v>.vsix
    ```
-   Publishing needs the `acro` publisher and a PAT with the Marketplace **Manage** scope.
+4. Upload the `.vsix` at <https://marketplace.visualstudio.com/manage> (publisher `acro`).
+
+See [Releasing a new version](../../README.md#vs-code) in the root README for the
+command-line alternative and the December 2026 PAT retirement.
 
 ## DSL reference
 
