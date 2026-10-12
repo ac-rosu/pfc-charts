@@ -169,13 +169,15 @@ async function buildFumadocs() {
   }
 
   // hand-written declarations (the public surface is small and stable, and this
-  // avoids tsc pulling the bundled @pfc/core sources into the emit tree)
+  // avoids tsc pulling the bundled @pfc/core sources into the emit tree). Keep them in
+  // step with src/: core/tests/fumadocsTypes.test.ts fails when they drift.
   const remarkDts = [
     "export interface RemarkPfcOptions {",
     "  component?: string;",
     "  lang?: string;",
+    "  trailingSlash?: boolean;",
     "}",
-    "export declare function remarkPfc(options?: RemarkPfcOptions): (tree: unknown) => void;",
+    "export declare function remarkPfc(options?: RemarkPfcOptions): (tree?: unknown, file?: unknown) => void;",
     "declare const _default: typeof remarkPfc;",
     "export default _default;",
     "",
@@ -188,8 +190,13 @@ async function buildFumadocs() {
       "  source?: string;",
       "  children?: string;",
       "  className?: string;",
+      "  page?: string;",
+      "  trailingSlash?: boolean;",
+      "  linkHref?: (target: string) => string;",
       "}",
       "export declare function PFC(props: PFCProps): import(\"react\").ReactElement;",
+      "export declare function docsHref(target: string): string;",
+      "export declare function pageHref(target: string, page: string, trailingSlash?: boolean): string;",
       "export { remarkPfc, default as remarkPfcDefault } from \"./remark\";",
       "export type { RemarkPfcOptions } from \"./remark\";",
       "",

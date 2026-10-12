@@ -69,6 +69,7 @@ export interface RStep {
   level: Level;
   initial: boolean;
   encapsulates: boolean;
+  link: string; // "" = not linked
 }
 export interface RTrans {
   x: number; // spine
@@ -831,6 +832,7 @@ function placeNode(node: PfcNode, spineX: number, cy: number, out: Layout): numb
       level: node.level,
       initial: node.initial,
       encapsulates: node.encapsulates,
+      link: node.link,
     });
     if (node.markers.length) {
       const store = ((out as any)._markers ??= []) as Array<any>;

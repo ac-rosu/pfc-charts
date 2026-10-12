@@ -163,3 +163,32 @@ test("comments and blank lines are ignored", () => {
 test("empty chart errors", () => {
   assert.throws(() => parsePfc(`# only a comment`), /chart is empty/);
 });
+
+test("link attaches to the step above and implies +", () => {
+  const c = parsePfc(`step "Charge" :operation\nnote "n"\nlink "charge.md#phases"\nstep "Cool"`);
+  const [charge, cool] = c.body as Array<{ link: string; encapsulates: boolean }>;
+  assert.equal(charge.link, "charge.md#phases");
+  assert.equal(charge.encapsulates, true);
+  assert.equal(cool.link, "");
+  assert.equal(cool.encapsulates, false);
+});
+
+test("link errors: placement, empty target, unsafe scheme", () => {
+  assert.throws(() => parsePfc(`link "a.md"`), /must come right after a step/);
+  assert.throws(() => parsePfc(`alloc "Tank"\nlink "a.md"`), /must come right after a step/);
+  assert.throws(() => parsePfc(`step "a" :op\nlink ""`), /link needs a target/);
+  assert.throws(() => parsePfc(`step "a" :op\nlink "javascript:alert(1)"`), /not allowed/);
+});
+
+test("a phase can't contain a lower-level chart: no + and no link", () => {
+  assert.throws(() => parsePfc(`step "Dose" :phase +`), /phase is the lowest procedural level/);
+  assert.throws(() => parsePfc(`step "Dose" + :phase`), /phase is the lowest procedural level/);
+  assert.throws(() => parsePfc(`step "Dose" contains`), /phase is the lowest/, "no level means phase");
+  assert.throws(() => parsePfc(`step "Dose" :phase\nlink "dose.md"`), /phase is the lowest procedural level/);
+  assert.throws(() => parsePfc(`step "Dose"\nlink "dose.md"`), /a step without a level is a phase/);
+  // every higher level may contain (and link to) a lower-level chart
+  for (const lvl of [":operation", ":unitprocedure", ":procedure"]) {
+    assert.doesNotThrow(() => parsePfc(`step "S" ${lvl} +`));
+    assert.doesNotThrow(() => parsePfc(`step "S" ${lvl}\nlink "s.md"`));
+  }
+});

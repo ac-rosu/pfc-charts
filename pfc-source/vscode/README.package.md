@@ -31,6 +31,8 @@ your active color theme.
 - **Cycles & jumps** — whole-chart `loop`, conditional `goto` retries, and multi-lane
   `concurrent` processes that each loop independently.
 - **Notes** — boxed annotations attached to any step.
+- **Drill-down links** — `link "charge.md"` makes a step clickable, opening the note with
+  its lower-level chart right in the preview.
 - **Theme-aware** — colors map onto VS Code theme variables (light / dark /
   high-contrast).
 
@@ -49,6 +51,7 @@ your active color theme.
 | Loop / retry | `loop` · `goto STEP_ID` |
 | Concurrent lanes | `concurrent` … `process "Lane"` … `end` |
 | Same-width boxes | `uniform-width` (anywhere in the chart) |
+| Drill-down link | `link "charge.md#phases"` (after an operation or higher step) |
 
 `sync`, `transfer`, and `note` attach to the step directly above them.
 

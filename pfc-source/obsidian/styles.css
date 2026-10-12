@@ -141,3 +141,21 @@
   border-radius: 4px;
   white-space: pre-wrap;
 }
+
+/* linked steps: the whole step box opens its lower-level chart */
+.pfc-link {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: var(--cursor-link, pointer);
+}
+.pfc-link:hover {
+  background: color-mix(in srgb, var(--interactive-accent) 14%, transparent);
+}
+.pfc-link.is-unresolved:hover {
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+}
+.pfc-link:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}

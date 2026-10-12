@@ -13,6 +13,7 @@
 //   selective                   (alternative branches)
 //     branch ...
 //   end
+//   link "target"               (after a step: click opens its lower-level chart)
 //
 // Levels: :phase :operation(:op) :unitprocedure(:up) :procedure(:proc)
 
@@ -32,6 +33,7 @@ export interface StepNode {
   encapsulates: boolean;
   markers: SyncMarker[];
   note: string;
+  link: string; // target of the lower-level chart ("" = none); implies encapsulates
 }
 export interface TransNode {
   kind: "trans";
@@ -215,6 +217,13 @@ export function parsePfc(source: string): PfcChart {
           else if (t === "+" || lt === "contains" || lt === "encapsulates") encapsulates = true;
           else idToks.push(t);
         }
+        // ISA-88: the phase is the lowest procedural level, so it never contains a
+        // lower-level chart (a step without a level is a phase)
+        if (encapsulates && level === "phase")
+          throw new ParseError(
+            "a phase is the lowest procedural level and can't contain a lower-level chart: remove '+', or give the step a higher level such as :operation",
+            n
+          );
         seq.push({
           kind: "step",
           id: idToks.join(" "),
@@ -224,6 +233,7 @@ export function parsePfc(source: string): PfcChart {
           encapsulates,
           markers: [],
           note: "",
+          link: "",
         });
         i++;
       } else if (kw === "trans" || kw === "transition") {
@@ -254,6 +264,22 @@ export function parsePfc(source: string): PfcChart {
         const noteText = rest.startsWith('"') ? splitIdLabel(rest).label : rest;
         if (!noteText.trim()) throw new ParseError("note needs text", n);
         last.note = noteText;
+        i++;
+      } else if (kw === "link") {
+        const last = seq[seq.length - 1];
+        if (!last || last.kind !== "step") throw new ParseError("'link' must come right after a step", n);
+        if (last.level === "phase")
+          throw new ParseError(
+            "'link' opens a lower-level chart, but a phase is the lowest procedural level: give the step a higher level such as :operation (a step without a level is a phase)",
+            n
+          );
+        const rest = text.slice(4).trim();
+        const target = (rest.startsWith('"') ? splitIdLabel(rest).label : rest).trim();
+        if (!target) throw new ParseError("link needs a target", n);
+        if (/^(javascript|data|vbscript):/i.test(target))
+          throw new ParseError(`link target '${target}' is not allowed`, n);
+        last.link = target;
+        last.encapsulates = true; // the link opens the lower-level chart it contains
         i++;
       } else if (kw === "sync" || kw === "transfer") {
         const last = seq[seq.length - 1];

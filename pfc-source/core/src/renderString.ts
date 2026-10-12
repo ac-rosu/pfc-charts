@@ -8,7 +8,7 @@
 // length-based fallback (no canvas), so output is deterministic.
 
 import { PfcChart } from "./parser";
-import { renderChart } from "./render";
+import { renderChart, RenderOptions } from "./render";
 
 interface El {
   tag: string;
@@ -71,12 +71,12 @@ function serialize(el: El): string {
 }
 
 /** Render a parsed chart to a standalone SVG markup string. */
-export function renderChartToString(chart: PfcChart): string {
+export function renderChartToString(chart: PfcChart, opts: RenderOptions = {}): string {
   const g = globalThis as { document?: unknown };
   const prev = g.document;
   g.document = shimDocument();
   try {
-    const root = renderChart(chart) as unknown as { _el: El };
+    const root = renderChart(chart, opts) as unknown as { _el: El };
     return serialize(root._el);
   } finally {
     g.document = prev;

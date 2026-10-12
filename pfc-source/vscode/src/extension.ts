@@ -37,7 +37,7 @@ export function extendMarkdownIt(md: MarkdownItLike): MarkdownItLike {
     const lang = (tokens[idx].info || "").trim().split(/\s+/)[0];
     if (lang === "pfc") {
       try {
-        const svg = renderChartToString(parsePfc(tokens[idx].content));
+        const svg = renderChartToString(parsePfc(tokens[idx].content), { links: true });
         return `<div class="pfc-container">${svg}</div>`;
       } catch (e) {
         const msg =

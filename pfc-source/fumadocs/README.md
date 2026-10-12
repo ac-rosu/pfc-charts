@@ -44,7 +44,9 @@ import { remarkPfc } from "@pfc/fumadocs/remark";
 
 export default defineConfig({
   mdxOptions: {
-    remarkPlugins: [remarkPfc()],
+    remarkPlugins: [remarkPfc],
+    // or, if your site serves pages with a trailing slash (`trailingSlash: true`):
+    // remarkPlugins: [[remarkPfc, { trailingSlash: true }]],
   },
 });
 ```
@@ -67,7 +69,18 @@ step "Heat" :operation
 ```
 ````
 
-The plugin rewrites each ` ```pfc ` fence into `<PFC source="..."/>`.
+The plugin rewrites each ` ```pfc ` fence into `<PFC source="..."/>`, and passes the
+page's file path so step links resolve correctly (see below).
+
+### Step links
+
+A step with `link "charge.md#phases"` becomes a link to that page. The target is
+resolved as a file next to the page the chart is on, the way VS Code and Obsidian
+resolve it, and turned into the page's URL: `.md`/`.mdx` and `index` are dropped,
+`(group)` folders are skipped, and the heading becomes its slug (`#phases`). This works
+from any page to any other, at any folder depth. Set `trailingSlash: true` on the remark
+plugin if your site serves pages at URLs ending in `/`; otherwise links come out one
+folder too deep.
 
 ### Option B — use the component directly
 
@@ -83,9 +96,15 @@ step "Heat" :operation`} />
 ## API
 
 - `PFC` — server component. Props: `source?: string`, `children?: string` (template
-  literal), `className?: string`. Parse errors render as a `.pfc-error` block.
+  literal), `className?: string`, plus for step links `page?: string` (the content file
+  the chart is on; the remark plugin sets it), `trailingSlash?: boolean`, and
+  `linkHref?: (target) => string` to build hrefs yourself. Parse errors render as a
+  `.pfc-error` block.
 - `remarkPfc(options?)` — remark plugin. Options: `component` (default `"PFC"`),
-  `lang` (default `"pfc"`). Also the default export.
+  `lang` (default `"pfc"`), `trailingSlash` (default `false`). Use it as `remarkPfc`,
+  `[remarkPfc, options]` or `remarkPfc(options)`. Also the default export.
+- `pageHref(target, page, trailingSlash?)` / `docsHref(target)` — the href builders,
+  with and without the page's file path.
 - `@pfc/fumadocs/styles.css` — theme stylesheet (Fumadocs tokens).
 
 The chart language is identical across all targets — see
