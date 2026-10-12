@@ -1,7 +1,7 @@
 // Deterministic top-to-bottom layout for PFC charts.
 // Produces absolutely-positioned primitives; no external layout library.
 
-import { PfcChart, PfcNode, Level } from "./parser";
+import { PfcChart, PfcNode, Level, StepNode, AllocNode } from "./parser";
 
 // ---- tunable geometry -------------------------------------------------------
 const FONT = "sans-serif";
@@ -51,6 +51,9 @@ const NOTE_RESERVE = NOTE_W + NOTE_GAP + 6;
 const SYNC_W = 26; // tab width (holds the id label)
 const SYNC_H = 16; // tab height
 const SYNC_RESERVE = 30; // horizontal room reserved beside a step that has markers
+const SYNC_PAD = 8; // clearance a sync connector keeps from boxes, labels and solid lines
+const SYNC_SPACING = 12; // minimum gap between two sync connectors running side by side
+const SYNC_STUB = 14; // shortest horizontal leg out of a tab (room for a transfer arrowhead)
 
 const ALLOC_H = 42; // allocation ellipse height
 const ALLOC_MIN_W = 74; // allocation ellipse minimum width
@@ -153,8 +156,51 @@ function textWidth(text: string, px: number): number {
   return _ctx.measureText(text).width;
 }
 
-const mmap = new WeakMap<object, Measure>();
-const smap = new WeakMap<object, Measure>(); // measure for a sequence (array)
+// measure caches, reset per layout pass (a measure depends on which side notes sit)
+let mmap = new WeakMap<object, Measure>();
+let smap = new WeakMap<object, Measure>(); // measure for a sequence (array)
+
+// Elements whose note goes on the LEFT because a sync tab already occupies their right
+// side. Notes default to the right. Set by layoutChart() between its two passes.
+let noteLeft = new WeakSet<object>();
+
+// horizontal room [left, right] an element reserves for its note callout
+function noteReserve(node: StepNode | AllocNode): [number, number] {
+  if (!node.note) return [0, 0];
+  return noteLeft.has(node) ? [NOTE_RESERVE, 0] : [0, NOTE_RESERVE];
+}
+
+// `uniform-width` charts draw every step (and every allocation) at the width of the
+// widest one. Set at the start of each layout pass, before anything is measured.
+let uniformStepW = 0;
+let uniformAllocW = 0;
+
+function stepWidth(label: string): number {
+  return Math.max(STEP_MIN_W, textWidth(label, STEP_FONT) + 2 * STEP_PAD_X, uniformStepW);
+}
+
+function allocWidth(label: string): number {
+  return Math.max(ALLOC_MIN_W, textWidth(label, STEP_FONT) + 2 * ALLOC_PAD_X, uniformAllocW);
+}
+
+function setUniformWidths(chart: PfcChart): void {
+  uniformStepW = 0;
+  uniformAllocW = 0;
+  if (!chart.uniformWidth) return;
+  let stepW = 0;
+  let allocW = 0;
+  const walk = (nodes: PfcNode[]): void => {
+    for (const nd of nodes) {
+      if (nd.kind === "step") stepW = Math.max(stepW, stepWidth(nd.label));
+      else if (nd.kind === "alloc") allocW = Math.max(allocW, allocWidth(nd.label));
+      else if (nd.kind === "parallel" || nd.kind === "selective") nd.branches.forEach(walk);
+      else if (nd.kind === "concurrent") nd.processes.forEach((p) => walk(p.body));
+    }
+  };
+  walk(chart.body);
+  uniformStepW = stepW;
+  uniformAllocW = allocW;
+}
 
 // wrap text to fit a pixel width
 function wrapText(text: string, px: number, maxW: number): string[] {
@@ -190,12 +236,22 @@ function wrapText(text: string, px: number, maxW: number): string[] {
   return lines.length ? lines : [text];
 }
 
-// attach a note callout to the right edge of an element box (sx,sy,sw,sh)
-function emitNote(out: Layout, note: string, sx: number, sy: number, sw: number, sh: number): void {
+// attach a note callout to the right (or, when `left`, the left) edge of an element
+// box (sx,sy,sw,sh)
+function emitNote(
+  out: Layout,
+  note: string,
+  sx: number,
+  sy: number,
+  sw: number,
+  sh: number,
+  left: boolean
+): void {
   const lines = wrapText(note, NOTE_FONT, NOTE_W - 2 * NOTE_PAD);
   const h = lines.length * NOTE_LINE_H + 2 * NOTE_PAD;
-  const x = sx + sw + NOTE_GAP;
+  const x = left ? sx - NOTE_GAP - NOTE_W : sx + sw + NOTE_GAP;
   const y = sy + sh / 2 - h / 2;
+  const cy = sy + sh / 2;
   out.notes.push({
     x,
     y,
@@ -203,7 +259,7 @@ function emitNote(out: Layout, note: string, sx: number, sy: number, sw: number,
     h,
     lines,
     lineH: NOTE_LINE_H,
-    link: [sx + sw, sy + sh / 2, x, sy + sh / 2],
+    link: left ? [sx, cy, x + NOTE_W, cy] : [sx + sw, cy, x, cy],
   });
 }
 
@@ -212,10 +268,10 @@ function measureNode(node: PfcNode): Measure {
   if (cached) return cached;
   let m: Measure;
   if (node.kind === "step") {
-    const w = Math.max(STEP_MIN_W, textWidth(node.label, STEP_FONT) + 2 * STEP_PAD_X);
+    const w = stepWidth(node.label);
     const reserve = node.markers.length ? SYNC_RESERVE : 0;
-    const noteR = node.note ? NOTE_RESERVE : 0;
-    m = { leftExt: w / 2 + reserve, rightExt: w / 2 + reserve + noteR, h: STEP_H, w };
+    const [noteL, noteR] = noteReserve(node);
+    m = { leftExt: w / 2 + reserve + noteL, rightExt: w / 2 + reserve + noteR, h: STEP_H, w };
   } else if (node.kind === "trans") {
     const cw = textWidth(node.condition, TRANS_FONT);
     m = {
@@ -224,10 +280,10 @@ function measureNode(node: PfcNode): Measure {
       h: TRANS_H,
     };
   } else if (node.kind === "alloc") {
-    const w = Math.max(ALLOC_MIN_W, textWidth(node.label, STEP_FONT) + 2 * ALLOC_PAD_X);
+    const w = allocWidth(node.label);
     const reserve = node.markers.length ? SYNC_RESERVE : 0;
-    const noteR = node.note ? NOTE_RESERVE : 0;
-    m = { leftExt: w / 2 + reserve, rightExt: w / 2 + reserve + noteR, h: ALLOC_H, w };
+    const [noteL, noteR] = noteReserve(node);
+    m = { leftExt: w / 2 + reserve + noteL, rightExt: w / 2 + reserve + noteR, h: ALLOC_H, w };
   } else if (node.kind === "goto") {
     if (node.drawn) {
       m = { leftExt: 6, rightExt: 6, h: GOTO_H };
@@ -284,6 +340,22 @@ function measureSeq(seq: PfcNode[]): Measure {
 }
 
 export function layoutChart(chart: PfcChart): Layout {
+  noteLeft = new WeakSet();
+  const out = layoutPass(chart);
+  // A note sits to the right of its element, but if a sync tab landed there (the
+  // partner is to the right), the connector would run through the note. Move such
+  // notes to the free left side, and lay out again to make room for them there.
+  const tabSides = ((out as any)._tabSides ?? new Map()) as Map<PfcNode, Set<"left" | "right">>;
+  for (const [node, sides] of tabSides) {
+    if ((node.kind === "step" || node.kind === "alloc") && node.note && sides.has("right") && !sides.has("left"))
+      noteLeft.add(node);
+  }
+  return [...tabSides.keys()].some((n) => noteLeft.has(n)) ? layoutPass(chart) : out;
+}
+
+function layoutPass(chart: PfcChart): Layout {
+  mmap = new WeakMap();
+  smap = new WeakMap();
   const out: Layout = {
     width: 0,
     height: 0,
@@ -310,6 +382,7 @@ export function layoutChart(chart: PfcChart): Layout {
   };
 
   out.titleY = MARGIN + TITLE_FONT;
+  setUniformWidths(chart);
 
   if (chart.body.length === 1 && chart.body[0].kind === "concurrent") {
     layoutConcurrent(chart.body[0] as any, out);
@@ -343,8 +416,6 @@ export function layoutChart(chart: PfcChart): Layout {
   const firstY = y;
   let bottom = placeSeq(chart.body, rootSpine, firstY, out);
 
-  pairSyncMarkers(out);
-
   // end terminal (single upward triangle) — all paths have converged by here
   if (showTerminals) {
     out.lines.push({ x1: rootSpine, y1: bottom, x2: rootSpine, y2: bottom + TERM_GAP });
@@ -365,6 +436,7 @@ export function layoutChart(chart: PfcChart): Layout {
 
   out.height = bottom + MARGIN;
   resolveGotos(out, leftGutter);
+  pairSyncMarkers(out);
   return out;
 }
 
@@ -491,8 +563,6 @@ function layoutConcurrent(node: { processes: Array<{ label: string; body: PfcNod
     return b;
   });
 
-  pairSyncMarkers(out);
-
   // each lane loops back through its own right-hand channel
   processes.forEach((_proc, i) => {
     out.loops.push(makeLoop(spines[i], topY, bottoms[i], loopChannels[i]));
@@ -520,6 +590,160 @@ function layoutConcurrent(node: { processes: Array<{ label: string; body: PfcNod
 
   out.width = x + MARGIN;
   out.height = Math.max(...bottoms) + LOOP_STUB + MARGIN;
+  pairSyncMarkers(out); // after the loop/goto channels, so connectors route around them
+}
+
+interface SyncPair {
+  aFace: number;
+  bFace: number;
+  y1: number; // row of the a tab
+  y2: number; // row of the b tab
+  transfer: boolean;
+  tabs: [number, number]; // indexes into out.syncTabs
+  x: number; // channel of the vertical leg
+}
+
+// A padded region a sync connector must not run through. `line` marks a solid
+// vertical line: the vertical leg avoids it, but a horizontal leg may cross it.
+interface SyncObstacle {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  tab?: number;
+  line?: boolean;
+}
+
+function syncObstacles(out: Layout): SyncObstacle[] {
+  const obs: SyncObstacle[] = [];
+  const add = (x1: number, y1: number, x2: number, y2: number, extra: Partial<SyncObstacle> = {}) =>
+    obs.push({ x1: x1 - SYNC_PAD, y1: y1 - SYNC_PAD, x2: x2 + SYNC_PAD, y2: y2 + SYNC_PAD, ...extra });
+  const verticals = (pts: Array<[number, number]>) => {
+    for (let i = 1; i < pts.length; i++) {
+      const [xa, ya] = pts[i - 1];
+      const [xb, yb] = pts[i];
+      if (xa === xb) add(xa, Math.min(ya, yb), xa, Math.max(ya, yb), { line: true });
+    }
+  };
+  for (const s of out.steps) {
+    const g = s.initial ? 4 : 0; // the initial-step double frame
+    add(s.x - g, s.y - g, s.x + s.w + g, s.y + s.h + g);
+  }
+  for (const a of out.allocs) add(a.cx - a.w / 2, a.cy - a.h / 2, a.cx + a.w / 2, a.cy + a.h / 2);
+  for (const c of out.gotoChips) add(c.x, c.y, c.x + c.w, c.y + c.h);
+  for (const n of out.notes) add(n.x, n.y, n.x + n.w, n.y + n.h);
+  for (const t of out.transes) {
+    const right = t.x + TICK_HALF + (t.condition ? COND_GAP + textWidth(t.condition, TRANS_FONT) : 0);
+    add(t.x - TICK_HALF, t.y - TRANS_FONT / 2, right, t.y + TRANS_FONT / 2);
+  }
+  out.syncTabs.forEach((t, i) => add(t.x, t.y, t.x + t.w, t.y + t.h, { tab: i }));
+  for (const ln of out.lines) verticals([[ln.x1, ln.y1], [ln.x2, ln.y2]]);
+  for (const lp of out.loops) verticals(lp.points);
+  for (const g of out.gotoLinks) verticals(g.points);
+  return obs;
+}
+
+// The x ranges where a connector's vertical leg can run without it, or either
+// horizontal leg leading to it, passing through an obstacle.
+function syncChannels(p: SyncPair, obs: SyncObstacle[]): Array<[number, number]> {
+  const left = Math.min(p.aFace, p.bFace);
+  const right = Math.max(p.aFace, p.bFace);
+  const yLeft = p.aFace <= p.bFace ? p.y1 : p.y2; // row of the left-hand tab
+  const yRight = p.aFace <= p.bFace ? p.y2 : p.y1;
+  const ylo = Math.min(p.y1, p.y2);
+  const yhi = Math.max(p.y1, p.y2);
+  let free: Array<[number, number]> = [[left + SYNC_STUB, right - SYNC_STUB]];
+  const cut = (lo: number, hi: number) => {
+    free = free.flatMap(([a, b]) => {
+      const keep: Array<[number, number]> = [];
+      if (lo > a) keep.push([a, Math.min(b, lo)]);
+      if (hi < b) keep.push([Math.max(a, hi), b]);
+      return keep;
+    });
+    free = free.filter(([a, b]) => a <= b);
+  };
+  for (const o of obs) {
+    if (o.tab === p.tabs[0] || o.tab === p.tabs[1]) continue;
+    if (o.y2 > ylo && o.y1 < yhi) cut(o.x1, o.x2);
+    if (o.line) continue;
+    const cx = (o.x1 + o.x2) / 2;
+    if (yLeft > o.y1 && yLeft < o.y2 && cx > left) cut(o.x1, Infinity);
+    if (yRight > o.y1 && yRight < o.y2 && cx < right) cut(-Infinity, o.x2);
+  }
+  return free;
+}
+
+type Seg4 = [number, number, number, number]; // x1, y1, x2, y2 (axis-aligned)
+
+function syncSegs(p: SyncPair, x: number): Seg4[] {
+  if (p.y1 === p.y2) return [[p.aFace, p.y1, p.bFace, p.y2]];
+  return [
+    [p.aFace, p.y1, x, p.y1],
+    [x, p.y1, x, p.y2],
+    [x, p.y2, p.bFace, p.y2],
+  ];
+}
+
+// Penalty for routing p's vertical leg at x, given the connectors already placed:
+// running alongside another connector is worst, then crossing one.
+function syncCost(p: SyncPair, x: number, others: SyncPair[]): number {
+  const within = (v: number, a: number, b: number) => v > Math.min(a, b) && v < Math.max(a, b);
+  const overlap = (a1: number, a2: number, b1: number, b2: number) =>
+    Math.max(Math.min(a1, a2), Math.min(b1, b2)) < Math.min(Math.max(a1, a2), Math.max(b1, b2));
+  let cost = 0;
+  const mine = syncSegs(p, x);
+  for (const q of others) {
+    for (const s of mine) {
+      for (const t of syncSegs(q, q.x)) {
+        const sV = s[0] === s[2];
+        const tV = t[0] === t[2];
+        if (sV && tV) {
+          if (Math.abs(s[0] - t[0]) < SYNC_SPACING && overlap(s[1], s[3], t[1], t[3])) cost += 1000;
+        } else if (!sV && !tV) {
+          if (Math.abs(s[1] - t[1]) < SYNC_SPACING && overlap(s[0], s[2], t[0], t[2])) cost += 1000;
+        } else {
+          const [h, v] = sV ? [t, s] : [s, t];
+          if (within(v[0], h[0], h[2]) && within(h[1], v[1], v[3])) cost += 100;
+        }
+      }
+    }
+  }
+  return cost;
+}
+
+// Choose each connector's channel: as close to the midpoint between its tabs as
+// possible (the historical position), clear of obstacles, apart from the other
+// connectors, and avoiding crossings. Most constrained connectors are placed
+// first, then everything is re-placed once against the full set.
+function routeSync(out: Layout, pairs: SyncPair[]): void {
+  const obs = syncObstacles(out);
+  const bent = pairs.filter((p) => p.y1 !== p.y2);
+  const channels = new Map(bent.map((p) => [p, syncChannels(p, obs)] as const));
+  const room = (p: SyncPair) => channels.get(p)!.reduce((n, [a, b]) => n + b - a, 0);
+  const order = [...bent].sort((p, q) => room(p) - room(q));
+  const placed = new Set<SyncPair>(pairs.filter((p) => p.y1 === p.y2));
+  for (let pass = 0; pass < 2; pass++) {
+    for (const p of order) {
+      const ideal = (p.aFace + p.bFace) / 2;
+      const others = [...placed].filter((q) => q !== p);
+      let best = ideal; // boxed in on every side: keep the midpoint
+      let bestCost = Infinity;
+      for (const [lo, hi] of channels.get(p)!) {
+        const cands = [Math.min(hi, Math.max(lo, ideal))];
+        for (let x = lo; x < hi; x++) cands.push(x);
+        cands.push(hi);
+        for (const x of cands) {
+          const c = syncCost(p, x, others) + Math.abs(x - ideal);
+          if (c < bestCost) {
+            bestCost = c;
+            best = x;
+          }
+        }
+      }
+      p.x = best;
+      placed.add(p);
+    }
+  }
 }
 
 // Pair markers collected during placement (by id) into side tabs + connectors.
@@ -528,6 +752,7 @@ function pairSyncMarkers(out: Layout): void {
     id: string;
     transfer: boolean;
     dir: string;
+    node: PfcNode;
     sx: number;
     sy: number;
     sw: number;
@@ -539,6 +764,7 @@ function pairSyncMarkers(out: Layout): void {
     if (g) g.push(mk);
     else byId.set(mk.id, [mk]);
   }
+  const pairs: SyncPair[] = [];
   for (const group of byId.values()) {
     if (group.length < 2) continue;
     const transfer = group.some((g) => g.transfer);
@@ -551,6 +777,13 @@ function pairSyncMarkers(out: Layout): void {
     const aCenter = a.sx + a.sw / 2;
     const bCenter = b.sx + b.sw / 2;
     const aIsLeft = aCenter <= bCenter;
+    const sides = ((out as any)._tabSides ??= new Map()) as Map<PfcNode, Set<"left" | "right">>;
+    const side = (node: PfcNode, s: "left" | "right") => {
+      if (!sides.has(node)) sides.set(node, new Set());
+      sides.get(node)!.add(s);
+    };
+    side(a.node, aIsLeft ? "right" : "left");
+    side(b.node, aIsLeft ? "left" : "right");
     const aTabX = aIsLeft ? a.sx + a.sw : a.sx - SYNC_W;
     const bTabX = aIsLeft ? b.sx - SYNC_W : b.sx + b.sw;
     const aTabY = a.sy + a.sh / 2 - SYNC_H / 2;
@@ -561,12 +794,16 @@ function pairSyncMarkers(out: Layout): void {
     const bFace = aIsLeft ? bTabX : bTabX + SYNC_W;
     const y1 = a.sy + a.sh / 2;
     const y2 = b.sy + b.sh / 2;
-    const midX = (aFace + bFace) / 2;
+    const n = out.syncTabs.length;
+    pairs.push({ aFace, bFace, y1, y2, transfer, tabs: [n - 2, n - 1], x: (aFace + bFace) / 2 });
+  }
+  routeSync(out, pairs);
+  for (const p of pairs) {
     const points: Array<[number, number]> =
-      y1 === y2
-        ? [[aFace, y1], [bFace, y2]]
-        : [[aFace, y1], [midX, y1], [midX, y2], [bFace, y2]];
-    out.syncLines.push({ points, transfer });
+      p.y1 === p.y2
+        ? [[p.aFace, p.y1], [p.bFace, p.y2]]
+        : [[p.aFace, p.y1], [p.x, p.y1], [p.x, p.y2], [p.bFace, p.y2]];
+    out.syncLines.push({ points, transfer: p.transfer });
   }
 }
 
@@ -598,9 +835,9 @@ function placeNode(node: PfcNode, spineX: number, cy: number, out: Layout): numb
     if (node.markers.length) {
       const store = ((out as any)._markers ??= []) as Array<any>;
       for (const mk of node.markers)
-        store.push({ ...mk, sx: spineX - m.w! / 2, sy: cy, sw: m.w!, sh: STEP_H });
+        store.push({ ...mk, node, sx: spineX - m.w! / 2, sy: cy, sw: m.w!, sh: STEP_H });
     }
-    if (node.note) emitNote(out, node.note, spineX - m.w! / 2, cy, m.w!, STEP_H);
+    if (node.note) emitNote(out, node.note, spineX - m.w! / 2, cy, m.w!, STEP_H, noteLeft.has(node));
     if (node.id) (((out as any)._stepPos ??= {}) as any)[node.id] = { x: spineX, y: cy };
     return cy + STEP_H;
   }
@@ -614,9 +851,9 @@ function placeNode(node: PfcNode, spineX: number, cy: number, out: Layout): numb
     if (node.markers.length) {
       const store = ((out as any)._markers ??= []) as Array<any>;
       for (const mk of node.markers)
-        store.push({ ...mk, sx: spineX - m.w! / 2, sy: cy, sw: m.w!, sh: ALLOC_H });
+        store.push({ ...mk, node, sx: spineX - m.w! / 2, sy: cy, sw: m.w!, sh: ALLOC_H });
     }
-    if (node.note) emitNote(out, node.note, spineX - m.w! / 2, cy, m.w!, ALLOC_H);
+    if (node.note) emitNote(out, node.note, spineX - m.w! / 2, cy, m.w!, ALLOC_H, noteLeft.has(node));
     return cy + ALLOC_H;
   }
 

@@ -48,6 +48,7 @@ your active color theme.
 | Note | `note "operator confirms"` |
 | Loop / retry | `loop` · `goto STEP_ID` |
 | Concurrent lanes | `concurrent` … `process "Lane"` … `end` |
+| Same-width boxes | `uniform-width` (anywhere in the chart) |
 
 `sync`, `transfer`, and `note` attach to the step directly above them.
 

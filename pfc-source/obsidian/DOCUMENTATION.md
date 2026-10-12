@@ -110,6 +110,7 @@ One statement per line. Quote any label that contains spaces.
 | `pfc <title>` | Optional chart title (usually the first line). |
 | `no-terminals` | Hide the begin/end triangles. Aliases: `terminals off`. |
 | `loop` | Make the whole chart a cycle (removes terminals). Aliases: `loop back`, `cycle`. |
+| `uniform-width` | Draw every step at the width of the widest step, and every allocation at the width of the widest allocation. Aliases: `uniform`. |
 
 ### Steps and levels
 
@@ -404,12 +405,13 @@ host (e.g. a VS Code webview or a Fumadocs component) mostly a packaging exercis
 - **Concurrent lanes** scale to any number of lanes: each lane loops back through its own
   channel in the gutter immediately to its right, and its drawn `goto`s route in that same
   gutter, so the routing stays local and never overlaps a neighbouring lane. Sync/transfer
-  connectors between adjacent lanes cross that gutter and hop over the loop channel.
-- **Sync/transfer connectors** route as horizontal → vertical → horizontal. Two
-  connectors crossing the same gap run their vertical segments near each other.
-- **Notes** render on the right of an element. In a concurrent left lane that places them
-  in the inter-lane gap; the dashed sync line draws on top (visible) but may overlap the
-  note box.
+  connectors between adjacent lanes cross that gutter, and its loop channel, directly.
+- **Sync/transfer connectors** route as horizontal → vertical → horizontal. The
+  vertical segment avoids boxes, notes and labels and keeps apart from other
+  connectors where there is room; in a very tight gap it falls back to the midpoint.
+- **Notes** render on the right of an element, or on its left when a sync/transfer tab
+  occupies its right side. An element with tabs on both sides keeps its note on the
+  right, where a connector may cross it.
 - **Loop-back** returns to the start of the chart/lane. To return to a *specific* earlier
   step on a condition, use `goto <step-id>` instead.
 - Each `process` in a `concurrent` block always loops (no run-once lane yet).

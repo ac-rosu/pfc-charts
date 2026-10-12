@@ -64,6 +64,7 @@ export interface PfcChart {
   title: string;
   terminals: boolean;
   loop: boolean;
+  uniformWidth: boolean;
   body: PfcNode[];
 }
 
@@ -138,6 +139,7 @@ export function parsePfc(source: string): PfcChart {
   let titleSeen = false;
   let terminals = true;
   let loop = false;
+  let uniformWidth = false;
 
   const rawLines = source.split(/\r?\n/);
   for (let idx = 0; idx < rawLines.length; idx++) {
@@ -156,6 +158,10 @@ export function parsePfc(source: string): PfcChart {
     }
     if (low === "loop" || low === "loop back" || low === "cycle") {
       loop = true;
+      continue;
+    }
+    if (low === "uniform-width" || low === "uniform width" || low === "uniform") {
+      uniformWidth = true;
       continue;
     }
     lines.push({ text: stripped, n: idx + 1 });
@@ -366,5 +372,5 @@ export function parsePfc(source: string): PfcChart {
     }
   }
 
-  return { title, terminals, loop, body };
+  return { title, terminals, loop, uniformWidth, body };
 }
