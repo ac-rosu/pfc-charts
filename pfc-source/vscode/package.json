@@ -6,6 +6,14 @@
   "publisher": "acro",
   "license": "MIT",
   "author": "ACRO",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ac-rosu/pfc-charts"
+  },
+  "bugs": {
+    "url": "https://github.com/ac-rosu/pfc-charts/issues"
+  },
+  "homepage": "https://github.com/ac-rosu/pfc-charts#readme",
   "icon": "media/icon.png",
   "pricing": "Free",
   "galleryBanner": {
@@ -30,6 +38,12 @@
     "onLanguage:markdown"
   ],
   "main": "./dist/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
   "contributes": {
     "markdown.markdownItPlugins": true,
     "markdown.previewStyles": [
