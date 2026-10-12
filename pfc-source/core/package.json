@@ -1,6 +1,6 @@
 {
   "name": "@pfc/core",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Framework-agnostic ISA-88 PFC parser, layout engine, and SVG renderer.",
   "private": true,
   "license": "MIT",
