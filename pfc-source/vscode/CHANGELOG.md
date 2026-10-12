@@ -1,5 +1,17 @@
 # Change Log
 
+## 1.2.0
+
+- New `link "target"` statement: put it after a step to make the step box clickable,
+  opening the note with its lower-level chart (e.g. an operation's phases) in the
+  Markdown preview. Targets are relative paths (`.md` optional) with an optional
+  `#heading`. A linked step shows the `+` automatically.
+- A phase is the lowest ISA-88 procedural level, so `+` or `link` on a phase (or on a
+  step without a level, which is a phase) is now a parse error. Charts that put `+` on
+  a phase need a higher level (e.g. `:operation`) or the `+` removed.
+- The `+` mark is now centred in its corner triangle instead of overlapping the
+  diagonal.
+
 ## 1.1.0
 
 - New `uniform-width` chart directive (alias `uniform`): draws every step at the width

@@ -1,7 +1,7 @@
 {
   "id": "pfc-charts",
   "name": "PFC Charts (ISA-88)",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "minAppVersion": "1.4.0",
   "description": "Render ISA-88 Procedure Function Charts from text in `pfc` code blocks, Mermaid-style.",
   "author": "ACRO",

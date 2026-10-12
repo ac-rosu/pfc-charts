@@ -2,7 +2,7 @@
   "name": "pfc-charts",
   "displayName": "PFC Charts (ISA-88)",
   "description": "Render ISA-88 Procedure Function Charts from `pfc` code blocks in the Markdown preview.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "publisher": "acro",
   "license": "MIT",
   "author": "ACRO",
