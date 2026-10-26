@@ -1,5 +1,18 @@
 # Change Log
 
+## 1.3.0
+
+- Large charts stay readable: a chart shrinks to fit the preview, but never below 80%
+  of its natural size. Past that it scrolls sideways, and charts taller than 80% of
+  the preview height scroll vertically. Scrollbars only appear when needed.
+- Zoom each chart: hover it for − / Fit / + controls, or hold `Ctrl`/`Cmd` and scroll
+  (or pinch on a trackpad) to zoom around the pointer, from 25% to 300%. A chart keeps
+  its zoom while you edit the document.
+- New `use-colors` directive: colors each step by the equipment its level runs on, as
+  in Physical Model Charts. Procedures are purple, unit procedures and operations blue,
+  and phases green; the hues come from the active theme's chart palette. Off by
+  default.
+
 ## 1.2.0
 
 - New `link "target"` statement: put it after a step to make the step box clickable,
