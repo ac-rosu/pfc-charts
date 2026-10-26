@@ -33,6 +33,12 @@ your active color theme.
 - **Notes** — boxed annotations attached to any step.
 - **Drill-down links** — `link "charge.md"` makes a step clickable, opening the note with
   its lower-level chart right in the preview.
+- **Level colors** — add `use-colors` to color each step by the equipment its level
+  runs on: procedures purple, unit procedures and operations blue, phases green.
+- **Large charts scroll** — a chart shrinks to fit the preview, but never below 80% of
+  its natural size; past that, and past 80% of the preview height, it scrolls.
+- **Zoom** — hover a chart for − / Fit / + controls, or hold `Ctrl`/`Cmd` and scroll
+  (or pinch) to zoom around the pointer.
 - **Theme-aware** — colors map onto VS Code theme variables (light / dark /
   high-contrast).
 
@@ -51,6 +57,7 @@ your active color theme.
 | Loop / retry | `loop` · `goto STEP_ID` |
 | Concurrent lanes | `concurrent` … `process "Lane"` … `end` |
 | Same-width boxes | `uniform-width` (anywhere in the chart) |
+| Level colors | `use-colors` (anywhere in the chart) |
 | Drill-down link | `link "charge.md#phases"` (after an operation or higher step) |
 
 `sync`, `transfer`, and `note` attach to the step directly above them.

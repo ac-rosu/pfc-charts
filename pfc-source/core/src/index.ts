@@ -6,3 +6,4 @@ export * from "./layout";
 export * from "./render";
 export * from "./renderString";
 export * from "./links";
+export * from "./zoom";

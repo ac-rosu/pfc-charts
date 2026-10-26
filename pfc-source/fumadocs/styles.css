@@ -3,17 +3,32 @@
    tokens so charts follow the active docs theme (light/dark). Import once in a
    global stylesheet: `import "@pfc/fumadocs/styles.css";` */
 
+/* A chart shrinks to fit the width, but not below --pfc-min-width (set by the
+   renderer); past that, and past 80% of the viewport height, the container
+   scrolls. Scrollbars only appear when needed. */
 .pfc-container {
-  display: flex;
-  justify-content: safe center;
-  overflow-x: auto;
+  overflow: auto;
+  max-height: 80vh;
   padding: 4px 0;
 }
 
 .pfc-svg {
   display: block;
+  margin: 0 auto;
   max-width: 100%;
+  min-width: var(--pfc-min-width);
   height: auto;
+}
+
+/* print / PDF export can't scroll: fit the page width instead */
+@media print {
+  .pfc-container {
+    max-height: none;
+    overflow: visible;
+  }
+  .pfc-svg {
+    min-width: 0;
+  }
 }
 
 /* connectors and bars */
@@ -122,6 +137,48 @@
 }
 .pfc-note-text {
   fill: var(--color-fd-muted-foreground);
+}
+
+/* `use-colors`: one hue per step level, by the equipment it runs on (the ISA-88
+   mapping, matching Physical Model Charts): procedure = process cell purple, unit
+   procedure and operation = unit blue, phase = equipment module green */
+.pfc-colored .pfc-lvl-procedure {
+  --pfc-level: #9333ea;
+}
+.pfc-colored .pfc-lvl-unitprocedure,
+.pfc-colored .pfc-lvl-operation {
+  --pfc-level: #2563eb;
+}
+.pfc-colored .pfc-lvl-phase {
+  --pfc-level: #15803d;
+}
+.dark .pfc-colored .pfc-lvl-procedure {
+  --pfc-level: #c084fc;
+}
+.dark .pfc-colored .pfc-lvl-unitprocedure,
+.dark .pfc-colored .pfc-lvl-operation {
+  --pfc-level: #60a5fa;
+}
+.dark .pfc-colored .pfc-lvl-phase {
+  --pfc-level: #4ade80;
+}
+.pfc-colored .pfc-step-rect,
+.pfc-colored .pfc-step-initial,
+.pfc-colored .pfc-corner {
+  stroke: var(--pfc-level);
+}
+/* a faint level tint inside the box (no-op where color-mix is unsupported) */
+.pfc-colored .pfc-step-rect {
+  fill: color-mix(in srgb, var(--pfc-level) 10%, var(--color-fd-background));
+}
+/* only steps have a level, so the other accented symbols go neutral */
+.pfc-colored .pfc-terminal {
+  fill: var(--color-fd-muted-foreground);
+}
+.pfc-colored .pfc-sync,
+.pfc-colored .pfc-alloc,
+.pfc-colored .pfc-goto-chip {
+  stroke: var(--color-fd-muted-foreground);
 }
 
 /* text */

@@ -3,6 +3,26 @@ import assert from "node:assert/strict";
 import { parsePfc } from "../src/parser.ts";
 import { renderChartToString } from "../src/renderString.ts";
 
+test("sets a minimum width of 80% of the natural width", () => {
+  const svg = renderChartToString(parsePfc(`parallel\nbranch\nstep "a"\nbranch\nstep "b"\nend`));
+  const width = Number(/^<svg [^>]*width="(\d+)"/.exec(svg)![1]);
+  const min = Number(/--pfc-min-width: (\d+)px/.exec(svg)![1]);
+  assert.equal(min, Math.round(width * 0.8));
+});
+
+test("each step is a group tagged with its level", () => {
+  const svg = renderChartToString(
+    parsePfc(`step "p" :procedure\nstep "u" :up\nstep "o" :op\nstep "f"`)
+  );
+  for (const lvl of ["procedure", "unitprocedure", "operation", "phase"])
+    assert.match(svg, new RegExp(`<g class="pfc-step pfc-lvl-${lvl}"><rect [^>]*class="pfc-step-rect"`));
+});
+
+test("use-colors tags the svg with pfc-colored", () => {
+  assert.match(renderChartToString(parsePfc(`step "a"`)), /^<svg class="pfc-svg"/);
+  assert.match(renderChartToString(parsePfc(`use-colors\nstep "a"`)), /^<svg class="pfc-svg pfc-colored"/);
+});
+
 test("renders a standalone <svg> string with dimensions", () => {
   const svg = renderChartToString(parsePfc(`pfc T\nstep "a"\ntrans "x"\nstep "b"`));
   assert.match(svg, /^<svg /);

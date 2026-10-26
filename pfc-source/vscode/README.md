@@ -28,6 +28,10 @@ blocks render as themed inline SVG that follows the active VS Code color theme.
 - Theming is contributed via `markdown.previewStyles`
   ([media/pfc-preview.css](media/pfc-preview.css)), which maps the chart classes onto
   `--vscode-*` theme variables.
+- Zoom is a preview script contributed via `markdown.previewScripts`
+  ([src/preview.ts](src/preview.ts), bundled to `media/pfc-preview.js`). It runs
+  `mountZoom` from `@pfc/core` on every `.pfc-frame`, and again after each preview update
+  (the preview diffs new HTML into the page, which drops the toolbar).
 - No runtime dependencies: `@pfc/core` is bundled into `dist/extension.js`.
 
 ## Build & package

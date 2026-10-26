@@ -8,6 +8,7 @@ import {
   resolveRelativePath,
   safeDecode,
   splitLink,
+  mountZoom,
 } from "@pfc/core";
 
 // Page-preview source id for linked steps (listed under Settings > Page preview).
@@ -21,11 +22,12 @@ export default class PfcChartsPlugin extends Plugin {
 
     this.registerMarkdownCodeBlockProcessor("pfc", (source, el, ctx) => {
       el.empty();
-      el.addClass("pfc-container");
       try {
-        const chart = parsePfc(source);
-        el.appendChild(renderChart(chart, { links: true }));
+        const svg = renderChart(parsePfc(source), { links: true });
+        el.addClass("pfc-frame");
+        el.createDiv({ cls: "pfc-container" }).appendChild(svg);
         this.wireLinks(el, ctx.sourcePath);
+        mountZoom(el);
       } catch (e) {
         const pre = el.createEl("pre", { cls: "pfc-error" });
         if (e instanceof ParseError) {

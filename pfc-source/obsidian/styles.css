@@ -1,14 +1,97 @@
+/* A chart shrinks to fit the width, but not below --pfc-min-width (set by the
+   renderer); past that, and past 80% of the viewport height, the container
+   scrolls. Scrollbars only appear when needed. */
 .pfc-container {
-  display: flex;
-  justify-content: safe center;
-  overflow-x: auto;
+  overflow: auto;
+  max-height: 80vh;
   padding: 4px 0;
 }
 
 .pfc-svg {
   display: block;
+  margin: 0 auto;
   max-width: 100%;
+  min-width: var(--pfc-min-width);
   height: auto;
+}
+
+/* zoom (mountZoom in main.ts): the frame holds the scroll box and a toolbar that shows
+   while hovering the chart; zooming sets an explicit width */
+.pfc-frame {
+  position: relative;
+}
+.pfc-zoomed .pfc-svg {
+  width: var(--pfc-zoom-width);
+  max-width: none;
+  min-width: 0;
+}
+.pfc-zoom-bar {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  box-shadow: var(--shadow-s);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.pfc-frame:hover .pfc-zoom-bar,
+.pfc-zoom-bar:focus-within {
+  opacity: 1;
+}
+@media (hover: none) {
+  .pfc-zoom-bar {
+    opacity: 1;
+  }
+}
+.pfc-zoom-bar button {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.pfc-zoom-bar button:hover:not(:disabled) {
+  background: var(--background-modifier-hover);
+  box-shadow: none;
+}
+.pfc-zoom-bar button:focus-visible {
+  outline: 1px solid var(--interactive-accent);
+  outline-offset: -1px;
+}
+.pfc-zoom-bar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.pfc-zoom-bar .pfc-zoom-reset {
+  min-width: 44px;
+}
+
+/* print / PDF export can't scroll or zoom: fit the page width instead */
+@media print {
+  .pfc-container {
+    max-height: none;
+    overflow: visible;
+  }
+  .pfc-svg,
+  .pfc-zoomed .pfc-svg {
+    max-width: 100%;
+    min-width: 0;
+  }
+  .pfc-zoom-bar {
+    display: none;
+  }
 }
 
 /* connectors and bars */
@@ -117,6 +200,44 @@
 }
 .pfc-note-text {
   fill: var(--text-muted);
+}
+
+/* `use-colors`: one hue per step level, by the equipment it runs on (the ISA-88
+   mapping, matching Physical Model Charts): procedure = process cell purple, unit
+   procedure and operation = unit blue, phase = equipment module green */
+.pfc-colored .pfc-lvl-procedure {
+  --pfc-level: var(--color-purple);
+}
+.pfc-colored .pfc-lvl-unitprocedure,
+.pfc-colored .pfc-lvl-operation {
+  --pfc-level: var(--color-blue);
+}
+.pfc-colored .pfc-lvl-phase {
+  --pfc-level: var(--color-green);
+}
+/* green is the palest hue on light themes; darken it to match */
+@supports (color: color-mix(in srgb, red, red)) {
+  .theme-light .pfc-colored .pfc-lvl-phase {
+    --pfc-level: color-mix(in srgb, var(--color-green) 75%, black);
+  }
+}
+.pfc-colored .pfc-step-rect,
+.pfc-colored .pfc-step-initial,
+.pfc-colored .pfc-corner {
+  stroke: var(--pfc-level);
+}
+/* a faint level tint inside the box (no-op where color-mix is unsupported) */
+.pfc-colored .pfc-step-rect {
+  fill: color-mix(in srgb, var(--pfc-level) 10%, var(--background-primary));
+}
+/* only steps have a level, so the other accented symbols go neutral */
+.pfc-colored .pfc-terminal {
+  fill: var(--text-muted);
+}
+.pfc-colored .pfc-sync,
+.pfc-colored .pfc-alloc,
+.pfc-colored .pfc-goto-chip {
+  stroke: var(--text-muted);
 }
 
 /* text */

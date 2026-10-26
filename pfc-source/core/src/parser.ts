@@ -67,6 +67,7 @@ export interface PfcChart {
   terminals: boolean;
   loop: boolean;
   uniformWidth: boolean;
+  colors: boolean; // one hue per step level, by the equipment it runs on
   body: PfcNode[];
 }
 
@@ -142,6 +143,7 @@ export function parsePfc(source: string): PfcChart {
   let terminals = true;
   let loop = false;
   let uniformWidth = false;
+  let colors = false;
 
   const rawLines = source.split(/\r?\n/);
   for (let idx = 0; idx < rawLines.length; idx++) {
@@ -164,6 +166,10 @@ export function parsePfc(source: string): PfcChart {
     }
     if (low === "uniform-width" || low === "uniform width" || low === "uniform") {
       uniformWidth = true;
+      continue;
+    }
+    if (low === "use-colors") {
+      colors = true;
       continue;
     }
     lines.push({ text: stripped, n: idx + 1 });
@@ -398,5 +404,5 @@ export function parsePfc(source: string): PfcChart {
     }
   }
 
-  return { title, terminals, loop, uniformWidth, body };
+  return { title, terminals, loop, uniformWidth, colors, body };
 }

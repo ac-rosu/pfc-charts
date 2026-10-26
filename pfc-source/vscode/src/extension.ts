@@ -3,7 +3,8 @@
 // VS Code loads this module for the built-in Markdown preview and calls
 // `extendMarkdownIt`. We add a fence rule that turns ```pfc code blocks into
 // inline SVG using the shared @pfc/core engine. All theming comes from
-// media/pfc-preview.css (contributed via markdown.previewStyles).
+// media/pfc-preview.css (contributed via markdown.previewStyles); zoom comes from
+// src/preview.ts, bundled to media/pfc-preview.js (markdown.previewScripts).
 
 import { parsePfc, ParseError, renderChartToString } from "@pfc/core";
 
@@ -38,7 +39,8 @@ export function extendMarkdownIt(md: MarkdownItLike): MarkdownItLike {
     if (lang === "pfc") {
       try {
         const svg = renderChartToString(parsePfc(tokens[idx].content), { links: true });
-        return `<div class="pfc-container">${svg}</div>`;
+        // media/pfc-preview.js adds the zoom controls to each .pfc-frame
+        return `<div class="pfc-frame"><div class="pfc-container">${svg}</div></div>`;
       } catch (e) {
         const msg =
           e instanceof ParseError && e.line > 0

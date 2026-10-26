@@ -48,6 +48,9 @@
     "markdown.markdownItPlugins": true,
     "markdown.previewStyles": [
       "./media/pfc-preview.css"
+    ],
+    "markdown.previewScripts": [
+      "./media/pfc-preview.js"
     ]
   },
   "devDependencies": {

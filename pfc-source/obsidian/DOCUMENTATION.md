@@ -22,6 +22,7 @@ a themed SVG diagram in both reading mode and live preview.
   - [Comments](#comments)
 - [Choosing the right construct](#choosing-the-right-construct)
 - [Validation & error messages](#validation--error-messages)
+- [Large charts: scrolling & zoom](#large-charts-scrolling--zoom)
 - [Styling & theming](#styling--theming)
 - [Building from source](#building-from-source)
 - [Architecture](#architecture)
@@ -113,6 +114,7 @@ One statement per line. Quote any label that contains spaces.
 | `no-terminals` | Hide the begin/end triangles. Aliases: `terminals off`. |
 | `loop` | Make the whole chart a cycle (removes terminals). Aliases: `loop back`, `cycle`. |
 | `uniform-width` | Draw every step at the width of the widest step, and every allocation at the width of the widest allocation. Aliases: `uniform`. |
+| `use-colors` | Color each step by the equipment its level runs on (the ISA-88 mapping, matching Physical Model Charts): procedures purple, unit procedures and operations blue, phases green. Allocations, sync tabs and terminals turn neutral, so color always means level. |
 
 ### Steps and levels
 
@@ -374,6 +376,19 @@ when the source is invalid. Common messages:
 
 ---
 
+## Large charts: scrolling & zoom
+
+A chart shrinks to fit the note width, but never below 80% of its natural size, so text
+stays readable. Past that it scrolls horizontally, and a chart taller than 80% of the
+window scrolls vertically. Scrollbars only appear when needed. PDF export can't scroll,
+so there charts shrink to fit the page instead.
+
+To zoom a chart, hover it and use the − / Fit / + controls in its bottom-right corner,
+or hold `Ctrl`/`Cmd` and scroll (or pinch on a trackpad) to zoom around the pointer.
+Zoom runs from 25% to 300% of the natural size; **Fit** returns to the default.
+
+---
+
 ## Styling & theming
 
 All colors come from Obsidian theme variables, so charts follow light/dark themes
@@ -381,6 +396,8 @@ automatically. Override any of these classes in `styles.css`:
 
 | Class | Element |
 |-------|---------|
+| `.pfc-step` / `.pfc-lvl-<level>` | Group wrapping one step (`procedure`, `unitprocedure`, `operation`, `phase`) |
+| `.pfc-colored` | Added to the `<svg>` with `use-colors`; each level sets its hue in `--pfc-level` |
 | `.pfc-step-rect` | Step box outline/fill |
 | `.pfc-corner` | Level corner diagonals |
 | `.pfc-plus` | Encapsulation `+` mark |
@@ -398,6 +415,9 @@ automatically. Override any of these classes in `styles.css`:
 | `.pfc-note` / `.pfc-note-text` / `.pfc-note-link` | Note box, text, and leader |
 | `.pfc-proc-title` | Concurrent lane title |
 | `.pfc-title` | Chart title |
+| `.pfc-frame` | The code block element; holds the scroll box and the zoom toolbar |
+| `.pfc-container` | Scrollable block around the `<svg>` (`max-height: 80vh`) |
+| `.pfc-zoom-bar` | Zoom toolbar (− / Fit / +), shown while hovering the chart |
 
 Geometry constants (box sizes, gaps, chamfer/mark length, note width, loop channel) live
 at the top of `src/layout.ts` and in the corner/plus constants in `src/render.ts`.
@@ -424,6 +444,7 @@ Source layout (shared core + Obsidian adapter):
 - `pfc-source/core/src/parser.ts` — text DSL → chart model
 - `pfc-source/core/src/layout.ts` — deterministic top-to-bottom layout (no external layout library)
 - `pfc-source/core/src/render.ts` — chart model → themed SVG
+- `pfc-source/core/src/zoom.ts` — zoom toolbar and `Ctrl`/`Cmd` + wheel zoom for a rendered chart
 - `pfc-source/core/src/index.ts` — the `@pfc/core` public surface
 - `pfc-source/obsidian/src/main.ts` — Obsidian `registerMarkdownCodeBlockProcessor("pfc", …)`
 

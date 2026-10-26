@@ -2,17 +2,100 @@
    Mirrors the Obsidian stylesheet but maps onto VS Code theme variables so
    charts follow the active color theme (light/dark/high-contrast). */
 
+/* A chart shrinks to fit the width, but not below --pfc-min-width (set by the
+   renderer); past that, and past 80% of the viewport height, the container
+   scrolls. Scrollbars only appear when needed. */
 .pfc-container {
-  display: flex;
-  justify-content: safe center;
-  overflow-x: auto;
+  overflow: auto;
+  max-height: 80vh;
   padding: 4px 0;
 }
 
 .pfc-svg {
   display: block;
+  margin: 0 auto;
   max-width: 100%;
+  min-width: var(--pfc-min-width);
   height: auto;
+}
+
+/* zoom (media/pfc-preview.js): the frame holds the scroll box and a toolbar that shows
+   while hovering the chart; zooming sets an explicit width */
+.pfc-frame {
+  position: relative;
+}
+.pfc-zoomed .pfc-svg {
+  width: var(--pfc-zoom-width);
+  max-width: none;
+  min-width: 0;
+}
+.pfc-zoom-bar {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border, transparent);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.2));
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.pfc-frame:hover .pfc-zoom-bar,
+.pfc-zoom-bar:focus-within {
+  opacity: 1;
+}
+@media (hover: none) {
+  .pfc-zoom-bar {
+    opacity: 1;
+  }
+}
+.pfc-zoom-bar button {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--vscode-foreground);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.pfc-zoom-bar button:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground);
+  box-shadow: none;
+}
+.pfc-zoom-bar button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+.pfc-zoom-bar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.pfc-zoom-bar .pfc-zoom-reset {
+  min-width: 44px;
+}
+
+/* print / PDF export can't scroll or zoom: fit the page width instead */
+@media print {
+  .pfc-container {
+    max-height: none;
+    overflow: visible;
+  }
+  .pfc-svg,
+  .pfc-zoomed .pfc-svg {
+    max-width: 100%;
+    min-width: 0;
+  }
+  .pfc-zoom-bar {
+    display: none;
+  }
 }
 
 /* connectors and bars */
@@ -121,6 +204,38 @@
 }
 .pfc-note-text {
   fill: var(--vscode-descriptionForeground);
+}
+
+/* `use-colors`: one hue per step level, by the equipment it runs on (the ISA-88
+   mapping, matching Physical Model Charts): procedure = process cell purple, unit
+   procedure and operation = unit blue, phase = equipment module green */
+.pfc-colored .pfc-lvl-procedure {
+  --pfc-level: var(--vscode-charts-purple);
+}
+.pfc-colored .pfc-lvl-unitprocedure,
+.pfc-colored .pfc-lvl-operation {
+  --pfc-level: var(--vscode-charts-blue);
+}
+.pfc-colored .pfc-lvl-phase {
+  --pfc-level: var(--vscode-charts-green);
+}
+.pfc-colored .pfc-step-rect,
+.pfc-colored .pfc-step-initial,
+.pfc-colored .pfc-corner {
+  stroke: var(--pfc-level);
+}
+/* a faint level tint inside the box (no-op where color-mix is unsupported) */
+.pfc-colored .pfc-step-rect {
+  fill: color-mix(in srgb, var(--pfc-level) 10%, var(--vscode-editor-background));
+}
+/* only steps have a level, so the other accented symbols go neutral */
+.pfc-colored .pfc-terminal {
+  fill: var(--vscode-descriptionForeground);
+}
+.pfc-colored .pfc-sync,
+.pfc-colored .pfc-alloc,
+.pfc-colored .pfc-goto-chip {
+  stroke: var(--vscode-descriptionForeground);
 }
 
 /* text */

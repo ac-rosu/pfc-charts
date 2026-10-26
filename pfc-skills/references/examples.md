@@ -273,6 +273,7 @@ explicitly wanted for a tight in-lane retry.
 ```
 pfc Full Example
 uniform-width
+use-colors
 // batch process: preparation transfers material to reaction
 step "Start" :procedure + initial
 trans "operator start"
@@ -318,7 +319,7 @@ step "Done" :phase
 Covers: title, comment, begin/end terminals, initial step, all four levels, `+`
 encapsulation, allocation, explicit and implicit transitions, simultaneous sequence with
 a nested sequence selection, a top-level sequence selection, synchronization,
-material transfer, and `uniform-width`.
+material transfer, `uniform-width`, and `use-colors`.
 
 ## 13. Drill-down links between charts
 

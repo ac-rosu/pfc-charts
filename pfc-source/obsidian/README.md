@@ -36,6 +36,9 @@ step "Discharge" :phase
 ```
 ````
 
+Large charts scroll instead of shrinking past readability. Hover a chart for zoom
+controls, or hold `Ctrl`/`Cmd` and scroll to zoom.
+
 ## Install
 
 Build with `npm run build:obsidian` (from the repo root), then copy the three generated
@@ -68,6 +71,7 @@ Indentation is optional — structure comes from keywords. `//` and `#` start co
 | `no-terminals` | Directive: hide the begin/end triangles for this chart. |
 | `loop` | Directive: make the chart a cycle — the end links back to the start. |
 | `uniform-width` | Directive: draw every step at the width of the widest step (allocations likewise), for a uniform look. |
+| `use-colors` | Directive: color each step by the equipment its level runs on — procedures purple, unit procedures and operations blue, phases green. |
 | `concurrent` … `process ["label"]` … `end` | Two or more **independent looping lanes**, each its own cycle (no begin/end, no convergence). Each `process` may take an optional label shown above the lane. Use `sync`/`transfer` to connect them. Must be the whole chart. |
 | `note "<text>"` | A boxed annotation attached to the **step or allocation above it**, drawn to the side with a leader line. Text wraps automatically. |
 | `link "<target>"` | Makes the **step above it** clickable, opening the note with its lower-level chart (e.g. `link "Charge Operation"` or `link "charge.md#phases"`). Adds the `+` automatically. Operations and higher only. Mod-click opens a new tab; Mod-hover previews the note; a missing note is created on click. |
@@ -123,7 +127,8 @@ nested arbitrarily.
 All colors come from Obsidian theme variables (`--interactive-accent`,
 `--text-normal`, `--background-primary`, …), so charts follow light/dark themes
 automatically. Override anything in `styles.css` — e.g. change `.pfc-step-rect`
-stroke to recolor steps.
+stroke to recolor steps. `use-colors` takes its hues from `--color-purple`,
+`--color-blue` and `--color-green`.
 
 ## Building from source
 

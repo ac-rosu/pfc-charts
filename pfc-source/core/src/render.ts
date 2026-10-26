@@ -5,6 +5,9 @@ import { layoutChart, Layout } from "./layout";
 
 const SVGNS = "http://www.w3.org/2000/svg";
 const XHTMLNS = "http://www.w3.org/1999/xhtml";
+// hosts shrink a chart to fit, but never below this share of its natural size
+// (keeps the 10px sync labels at 8px or more); past it, the container scrolls
+const MIN_SCALE = 0.8;
 
 export interface RenderOptions {
   // Make linked steps clickable: an HTML <a> covering the step box, inside a
@@ -119,11 +122,13 @@ export function renderChart(chart: PfcChart, opts: RenderOptions = {}): SVGEleme
   const L: Layout = layoutChart(chart);
 
   const svg = svgEl("svg", {
-    class: "pfc-svg",
+    class: chart.colors ? "pfc-svg pfc-colored" : "pfc-svg",
     width: Math.ceil(L.width),
     height: Math.ceil(L.height),
     viewBox: `0 0 ${Math.ceil(L.width)} ${Math.ceil(L.height)}`,
     xmlns: SVGNS,
+    // a custom property, not a declaration: the host stylesheets decide how to use it
+    style: `--pfc-min-width: ${Math.round(Math.ceil(L.width) * MIN_SCALE)}px`,
   });
 
   // title
@@ -203,10 +208,11 @@ export function renderChart(chart: PfcChart, opts: RenderOptions = {}): SVGEleme
     }
   }
 
-  // steps
+  // steps, one group each so stylesheets can style a step by its level
   for (const s of L.steps) {
+    const g = svgEl("g", { class: `pfc-step pfc-lvl-${s.level}` });
     if (s.initial) {
-      svg.appendChild(
+      g.appendChild(
         svgEl("rect", {
           x: s.x - 4,
           y: s.y - 4,
@@ -216,7 +222,7 @@ export function renderChart(chart: PfcChart, opts: RenderOptions = {}): SVGEleme
         })
       );
     }
-    svg.appendChild(
+    g.appendChild(
       svgEl("rect", { x: s.x, y: s.y, width: s.w, height: s.h, class: "pfc-step-rect" })
     );
 
@@ -225,7 +231,7 @@ export function renderChart(chart: PfcChart, opts: RenderOptions = {}): SVGEleme
     if (s.encapsulates) corners.add("tr");
     for (const corner of LEVEL_ORDER) {
       if (corners.has(corner))
-        svg.appendChild(svgEl("line", { ...markLine(corner, s.x, s.y, s.w, s.h), class: "pfc-corner" }));
+        g.appendChild(svgEl("line", { ...markLine(corner, s.x, s.y, s.w, s.h), class: "pfc-corner" }));
     }
 
     // "+" centred in the top-right corner triangle: at its incenter, equally far from
@@ -235,8 +241,8 @@ export function renderChart(chart: PfcChart, opts: RenderOptions = {}): SVGEleme
       const px = s.x + s.w - inset;
       const py = s.y + inset;
       const a = 2.5;
-      svg.appendChild(svgEl("line", { x1: px - a, y1: py, x2: px + a, y2: py, class: "pfc-plus" }));
-      svg.appendChild(svgEl("line", { x1: px, y1: py - a, x2: px, y2: py + a, class: "pfc-plus" }));
+      g.appendChild(svgEl("line", { x1: px - a, y1: py, x2: px + a, y2: py, class: "pfc-plus" }));
+      g.appendChild(svgEl("line", { x1: px, y1: py - a, x2: px, y2: py + a, class: "pfc-plus" }));
     }
 
     const label = svgEl("text", {
@@ -249,7 +255,7 @@ export function renderChart(chart: PfcChart, opts: RenderOptions = {}): SVGEleme
       "font-family": L.fontFamily,
     });
     label.textContent = s.label;
-    svg.appendChild(label);
+    g.appendChild(label);
 
     if (opts.links && s.link) {
       const area = svgEl("foreignObject", { x: s.x, y: s.y, width: s.w, height: s.h, class: "pfc-link-area" });
@@ -259,8 +265,9 @@ export function renderChart(chart: PfcChart, opts: RenderOptions = {}): SVGEleme
       a.setAttribute("title", `${s.label} → ${s.link}`);
       a.textContent = ""; // keeps an explicit </a> when serialised (HTML has no self-closing <a/>)
       area.appendChild(a);
-      svg.appendChild(area);
+      g.appendChild(area);
     }
+    svg.appendChild(g);
   }
 
   // begin / end terminals (placeholders): begin points down, end points up

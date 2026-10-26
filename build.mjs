@@ -96,10 +96,24 @@ async function buildVscode() {
     outfile: join(out, "dist/extension.js"),
   });
 
+  // preview-side script (zoom controls), run inside the Markdown preview webview
+  await esbuild.build({
+    entryPoints: ["pfc-source/vscode/src/preview.ts"],
+    bundle: true,
+    platform: "browser",
+    format: "iife",
+    target: "es2020",
+    treeShaking: true,
+    sourcemap: watch ? "inline" : false,
+    logLevel: "info",
+    outfile: join(out, "media/pfc-preview.js"),
+  });
+
   // self-contained extension folder, ready for `vsce package`
   copyFileSync("pfc-source/vscode/package.json", join(out, "package.json"));
 
-  // media assets (icon + preview stylesheet); .svg is the icon's source, not shipped
+  // media assets (icon + preview stylesheet; the preview script is built above);
+  // .svg is the icon's source, not shipped
   for (const f of readdirSync("pfc-source/vscode/media")) {
     if (f.endsWith(".svg")) continue;
     copyFileSync(join("pfc-source/vscode/media", f), join(out, "media", f));

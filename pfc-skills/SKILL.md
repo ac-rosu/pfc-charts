@@ -61,6 +61,9 @@ Comments: a line starting with `#`, or `//` anywhere (rest of line ignored).
   begin/end triangles. (Aliases: `loop back`, `cycle`.)
 - `uniform-width` — draw every step box at the width of the widest one (allocations
   likewise), for a uniform look. Off by default: boxes size to their own label. (Alias: `uniform`.)
+- `use-colors` — color each step by the equipment its level runs on (the ISA-88
+  mapping, matching Physical Model Charts): procedures purple, unit procedures and
+  operations blue, phases green. Off by default.
 
 By default a normal chart shows a **begin** triangle (▽) at the top and an **end**
 triangle (△) at the bottom. `loop` and `concurrent` replace these with the cycle links.
